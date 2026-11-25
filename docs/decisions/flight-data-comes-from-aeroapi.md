@@ -1,6 +1,8 @@
 # Flight's live data comes from FlightAware AeroAPI
 
-Status: accepted (2026-11-25, RAS-124)
+Status: superseded (2026-11-25) by
+[flight-data-comes-from-flightradar24.md](flight-data-comes-from-flightradar24.md):
+we couldn't register for AeroAPI. Accepted 2026-11-25, RAS-124.
 
 ## Context
 
