@@ -1,0 +1,13 @@
+# Changes here will be overwritten by Copier; do not edit by hand.
+_commit: 7613b73
+_src_path: gh:hugorodgerbrown/django-titan-template
+author_email: hugo@rodger-brown.com
+author_name: Hugo Rodger-Brown
+copyright_holder: Hugo Rodger-Brown
+description: 'Flight: a personal flight tracker'
+include_mcp: true
+mcp_can_connect: mcp_auth.policy.active_user
+project_name: Flight
+project_slug: flight
+render_region: frankfurt
+theme_colour: '#1d4ed8'
