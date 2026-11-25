@@ -82,14 +82,6 @@ RESOURCES: dict[str, UiResource] = {
     r.uri: r
     for r in [
         UiResource(
-            uri="ui://notes/list",
-            name="notes_list",
-            title="Notes",
-            description="The user's latest notes as a card.",
-            html="notes_list.html",
-            scripts=("notes_list.js",),
-        ),
-        UiResource(
             uri="ui://flight/map",
             name="flight_map",
             title="Flight",

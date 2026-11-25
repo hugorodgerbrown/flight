@@ -36,8 +36,13 @@ def test_where_is_answers_in_words_and_names_the_map(rpc: Any) -> None:
 
     result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": " ba 1234 "}})
     (content,) = result["content"]
-    assert content["text"].startswith("BA1234 lands at London Heathrow at 17:40, in 1 h 40 m")
-    assert "Sample data" in content["text"]
+    assert content["text"].startswith(
+        "BA1234 is in the air from Lisbon (LIS) to London Heathrow (LHR), 38% of the way. "
+        "It left at 15:00 local time and lands at 17:40 local time, in 1 h 40 m, "
+        "12 minutes late. The map shows its route and where it is now."
+    )
+    assert "sample data" in content["text"]
+    assert "made-up flight" in content["text"]
     flight = result["structuredContent"]
     assert flight["flight"] == "BA1234"
     assert flight["sample"] is True

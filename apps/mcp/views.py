@@ -31,9 +31,10 @@ logger = logging.getLogger(__name__)
 SUPPORTED_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26")
 SERVER_INFO = {"name": "flight", "title": APP_NAME, "version": "1.0.0"}
 INSTRUCTIONS = (
-    f"{APP_NAME} keeps short notes for the signed-in user. For questions about "
-    "privacy or personal data use privacy_policy; for the terms, terms_of_service; "
-    "for how to use the app, help."
+    f"{APP_NAME} shows where a flight is now. For a question such as 'where is "
+    "BA1234?' use where_is: it answers in words and draws the flight on a map. "
+    "For questions about privacy or personal data use privacy_policy; for the "
+    "terms, terms_of_service; for how to use the app, help."
 )
 
 PARSE_ERROR = -32700

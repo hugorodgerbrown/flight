@@ -17,6 +17,7 @@
   const MIN_SPAN = 8; // degrees across: a short hop is not zoomed in further
   const PAD = 0.25; // of the route's size, on every side
   const STEPS = 64;
+  const LABEL_GAP = 18; // from an airport's centre to its code's centre
   const rad = (d) => (d * Math.PI) / 180;
   const deg = (r) => (r * 180) / Math.PI;
   const mercator = (lat) => deg(Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2)));
@@ -79,6 +80,16 @@
       .join('');
   }
 
+  // Where an airport's code goes: LABEL_GAP away from the airport, on the side
+  // away from the route (which leaves towards `toward`), so the line never
+  // runs through it. The code is centred on that point.
+  function labelAt(airport, toward) {
+    const dx = toward[0] - airport[0];
+    const dy = toward[1] - airport[1];
+    const length = Math.hypot(dx, dy) || 1;
+    return [airport[0] - (dx / length) * LABEL_GAP, airport[1] - (dy / length) * LABEL_GAP];
+  }
+
   function draw(svg, flight) {
     const { origin, destination } = flight;
     const progress = Math.max(0, Math.min(1, Number(flight.progress) || 0));
@@ -98,10 +109,15 @@
     if (progress > 0) {
       parts.push(el('path', { class: 'flown', d: line(greatCircle(origin, destination, progress, STEPS), view) }));
     }
-    for (const airport of [origin, destination]) {
+    const ends = [
+      [origin, route[1]],
+      [destination, route[STEPS - 1]],
+    ];
+    for (const [airport, next] of ends) {
       const [x, y] = at(airport);
       parts.push(el('circle', { class: 'airport', cx: x.toFixed(1), cy: y.toFixed(1), r: 4 }));
-      const code = el('text', { class: 'code', x: x.toFixed(1), y: (y + 20).toFixed(1) });
+      const [lx, ly] = labelAt([x, y], at(next));
+      const code = el('text', { class: 'code', x: lx.toFixed(1), y: ly.toFixed(1) });
       code.textContent = airport.code;
       parts.push(code);
     }
@@ -138,7 +154,7 @@
     draw(q('map'), flight);
   }
 
-  self.FlightMap = { project, greatCircle, frame, duration };
+  self.FlightMap = { project, greatCircle, frame, duration, labelAt };
 
   if (!self.McpApp) return;
   const status = document.querySelector('[data-status]');
