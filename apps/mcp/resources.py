@@ -89,6 +89,14 @@ RESOURCES: dict[str, UiResource] = {
             html="notes_list.html",
             scripts=("notes_list.js",),
         ),
+        UiResource(
+            uri="ui://flight/map",
+            name="flight_map",
+            title="Flight",
+            description="One flight on a map: its route, position, progress and landing time.",
+            html="flight_map.html",
+            scripts=("flight_land.js", "flight_map.js"),
+        ),
     ]
 }
 

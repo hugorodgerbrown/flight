@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight</title>
+<!--
+  The flight map card, an MCP App view (apps/mcp/resources.py). It runs in
+  the client's sandboxed frame, so it carries its own style, script and base
+  map (flight_land.js); it loads nothing over the network. The host's style
+  variables win over the fallbacks here.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    font-family: var(--font-sans, system-ui, sans-serif);
+    color: var(--color-text-primary, CanvasText);
+    background: transparent;
+    --muted: var(--color-text-secondary, GrayText);
+    --rule: var(--color-border-secondary, color-mix(in srgb, currentColor 15%, transparent));
+    --sea: color-mix(in srgb, currentColor 4%, transparent);
+    --land: color-mix(in srgb, currentColor 11%, transparent);
+    --accent: var(--color-text-info, #2f6fde);
+    --late: var(--color-text-warning, #a15c00);
+  }
+  body { margin: 0; padding: 12px 16px 16px; }
+  .map { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--sea); }
+  .map .land { fill: var(--land); stroke: none; }
+  .map .ahead { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 5; }
+  .map .flown { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+  .map .airport { fill: Canvas; stroke: var(--muted); stroke-width: 1.5; }
+  .map .halo { fill: var(--accent); opacity: 0.2; }
+  .map .plane { fill: var(--accent); }
+  .map .code { fill: var(--muted); font-size: 12px; text-anchor: middle; paint-order: stroke; stroke: Canvas; stroke-width: 3px; }
+  .summary { margin: 0 0 10px; font-size: var(--font-text-md-size, 1rem); line-height: 1.4; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+  .route { margin: 0; font-size: 1.125rem; font-weight: var(--font-weight-semibold, 600); }
+  .pill { padding: 2px 10px; border: 1px solid currentColor; border-radius: 999px; font-size: var(--font-text-sm-size, 0.875rem); }
+  .pill[data-tone="late"] { color: var(--late); }
+  .pill[data-tone="ok"] { color: var(--accent); }
+  .bar { height: 6px; margin-top: 12px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+  .bar > span { display: block; height: 100%; width: 0; background: var(--accent); }
+  .times { display: flex; justify-content: space-between; margin: 8px 0 0; font-size: var(--font-text-sm-size, 0.875rem); color: var(--muted); }
+  .times strong { color: var(--color-text-primary, CanvasText); }
+  .note, .status { margin: 10px 0 0; font-size: var(--font-text-sm-size, 0.875rem); color: var(--muted); }
+</style>
+</head>
+<body>
+<p class="status" data-status>Loading…</p>
+<article data-card hidden>
+  <p class="summary" data-summary></p>
+  <svg class="map" data-map viewBox="0 0 640 360" role="img" aria-label="Map of the flight's route"></svg>
+  <div class="row">
+    <p class="route" data-route></p>
+    <span class="pill" data-pill></span>
+  </div>
+  <div class="bar"><span data-progress></span></div>
+  <p class="times"><span data-departed></span><strong data-arrives></strong></p>
+  <p class="note" data-note hidden></p>
+</article>
+</body>
+</html>
