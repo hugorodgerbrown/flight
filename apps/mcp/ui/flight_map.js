@@ -1,0 +1,158 @@
+/*
+ * apps/mcp/ui/flight_map.js — draw where_is's result as a map card.
+ *
+ * The map is the land from flight_land.js (Web Mercator in degrees: x =
+ * longitude + 180, y = 0 at 85 degrees north), cropped to the route. The
+ * route is the great circle between the airports: flown part solid, the
+ * rest dashed, the plane one accent dot. Everything from the result goes
+ * in as text, never as markup.
+ */
+(function () {
+  'use strict';
+
+  const SVG = 'http://www.w3.org/2000/svg';
+  const WIDTH = 640;
+  const HEIGHT = 360;
+  const MAX_LAT = 85;
+  const MIN_SPAN = 8; // degrees across: a short hop is not zoomed in further
+  const PAD = 0.25; // of the route's size, on every side
+  const STEPS = 64;
+  const rad = (d) => (d * Math.PI) / 180;
+  const deg = (r) => (r * 180) / Math.PI;
+  const mercator = (lat) => deg(Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2)));
+  const TOP = mercator(MAX_LAT);
+
+  function project(lon, lat) {
+    const clamped = Math.max(-MAX_LAT, Math.min(MAX_LAT, lat));
+    return [lon + 180, TOP - mercator(clamped)];
+  }
+
+  // Points along the great circle from a to b ({lat, lon}), fraction 0 to `upTo`.
+  function greatCircle(a, b, upTo, steps) {
+    const [lat1, lon1, lat2, lon2] = [a.lat, a.lon, b.lat, b.lon].map(rad);
+    const angle =
+      2 *
+      Math.asin(
+        Math.sqrt(Math.sin((lat2 - lat1) / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2)
+      );
+    const points = [];
+    for (let i = 0; i <= steps; i++) {
+      const f = (upTo * i) / steps;
+      if (angle === 0) {
+        points.push({ lat: a.lat, lon: a.lon });
+        continue;
+      }
+      const p = Math.sin((1 - f) * angle) / Math.sin(angle);
+      const q = Math.sin(f * angle) / Math.sin(angle);
+      const x = p * Math.cos(lat1) * Math.cos(lon1) + q * Math.cos(lat2) * Math.cos(lon2);
+      const y = p * Math.cos(lat1) * Math.sin(lon1) + q * Math.cos(lat2) * Math.sin(lon2);
+      const z = p * Math.sin(lat1) + q * Math.sin(lat2);
+      points.push({ lat: deg(Math.atan2(z, Math.hypot(x, y))), lon: deg(Math.atan2(y, x)) });
+    }
+    return points;
+  }
+
+  // The crop of the projected map that holds `points` ([x, y]), padded, at the card's aspect.
+  function frame(points) {
+    const xs = points.map((p) => p[0]);
+    const ys = points.map((p) => p[1]);
+    let [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const span = Math.max(x1 - x0, ((y1 - y0) * WIDTH) / HEIGHT, MIN_SPAN) * (1 + 2 * PAD);
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    const tall = (span * HEIGHT) / WIDTH;
+    return { x: cx - span / 2, y: cy - tall / 2, scale: WIDTH / span };
+  }
+
+  function el(name, attrs) {
+    const node = document.createElementNS(SVG, name);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+    return node;
+  }
+
+  function line(points, view) {
+    return points
+      .map((p, i) => {
+        const [x, y] = project(p.lon, p.lat);
+        return `${i ? 'L' : 'M'}${((x - view.x) * view.scale).toFixed(1)} ${((y - view.y) * view.scale).toFixed(1)}`;
+      })
+      .join('');
+  }
+
+  function draw(svg, flight) {
+    const { origin, destination } = flight;
+    const progress = Math.max(0, Math.min(1, Number(flight.progress) || 0));
+    const route = greatCircle(origin, destination, 1, STEPS);
+    const view = frame(route.map((p) => project(p.lon, p.lat)));
+    const at = (p) => {
+      const [x, y] = project(p.lon, p.lat);
+      return [(x - view.x) * view.scale, (y - view.y) * view.scale];
+    };
+
+    const land = el('path', {
+      class: 'land',
+      d: self.FlightLand || '',
+      transform: `translate(${(-view.x * view.scale).toFixed(2)} ${(-view.y * view.scale).toFixed(2)}) scale(${view.scale.toFixed(4)})`,
+    });
+    const parts = [land, el('path', { class: 'ahead', d: line(route, view) })];
+    if (progress > 0) {
+      parts.push(el('path', { class: 'flown', d: line(greatCircle(origin, destination, progress, STEPS), view) }));
+    }
+    for (const airport of [origin, destination]) {
+      const [x, y] = at(airport);
+      parts.push(el('circle', { class: 'airport', cx: x.toFixed(1), cy: y.toFixed(1), r: 4 }));
+      const code = el('text', { class: 'code', x: x.toFixed(1), y: (y + 20).toFixed(1) });
+      code.textContent = airport.code;
+      parts.push(code);
+    }
+    if (flight.position && flight.status === 'airborne') {
+      const [x, y] = at(flight.position);
+      parts.push(el('circle', { class: 'halo', cx: x.toFixed(1), cy: y.toFixed(1), r: 13 }));
+      parts.push(el('circle', { class: 'plane', cx: x.toFixed(1), cy: y.toFixed(1), r: 6 }));
+    }
+    svg.replaceChildren(...parts);
+    svg.setAttribute('aria-label', `Map of ${flight.flight} from ${origin.name} to ${destination.name}`);
+  }
+
+  function duration(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return [hours ? `${hours} h` : '', mins ? `${mins} m` : ''].filter(Boolean).join(' ') || '0 m';
+  }
+
+  function fill(flight) {
+    const q = (name) => document.querySelector(`[data-${name}]`);
+    const left = Math.max(0, Number(flight.minutes_to_go) || 0);
+    q('summary').textContent = `${flight.flight} lands at ${flight.destination.name} in ${duration(left)}.`;
+    q('route').textContent = `${flight.origin.code} → ${flight.destination.code}`;
+    const late = Number(flight.delay_minutes) || 0;
+    const pill = q('pill');
+    pill.textContent = late > 0 ? `${late} min late` : 'On time';
+    pill.dataset.tone = late > 0 ? 'late' : 'ok';
+    q('progress').style.width = `${Math.round(Math.max(0, Math.min(1, Number(flight.progress) || 0)) * 100)}%`;
+    q('departed').textContent = `Left ${flight.departed_local}`;
+    q('arrives').textContent = `Lands ${flight.arrives_local}`;
+    const note = q('note');
+    note.textContent = flight.sample ? 'Sample data: Flight is not connected to live flights yet.' : '';
+    note.hidden = !flight.sample;
+    draw(q('map'), flight);
+  }
+
+  self.FlightMap = { project, greatCircle, frame, duration };
+
+  if (!self.McpApp) return;
+  const status = document.querySelector('[data-status]');
+  const card = document.querySelector('[data-card]');
+  self.McpApp.onToolResult((result) => {
+    const flight = result.structuredContent;
+    if (result.isError || !flight || !flight.origin || !flight.destination) {
+      card.hidden = true;
+      status.textContent = ((result.content || [])[0] || {}).text || 'Something went wrong.';
+      status.hidden = false;
+      return;
+    }
+    fill(flight);
+    status.hidden = true;
+    card.hidden = false;
+  });
+})();
