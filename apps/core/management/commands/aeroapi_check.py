@@ -5,7 +5,8 @@ no arguments it lists the 20 flights it would look up and what that may
 cost, and spends nothing. ``--commit`` makes the lookups, one query per
 flight plus one for the position of each flight in the air, paced for the
 Personal tier's 10 queries a minute, then prints what each answer held and
-what the run cost (from AeroAPI's own usage count, which is free to read).
+what the run cost at the list price. AeroAPI's own usage count lags 10 to
+20 minutes, so ``--usage`` reads it later, for free.
 
 Run it where AEROAPI_KEY is set, such as the Render shell::
 
@@ -163,7 +164,10 @@ def summarise(asked: str, flight: dict[str, Any] | None, position: Any) -> dict[
         return {"asked": asked, "found": False}
     origin = flight.get("origin") or {}
     destination = flight.get("destination") or {}
-    delay = flight.get("arrival_delay") or flight.get("departure_delay")
+    # 0 is a real answer (on time), so fall back only when arrival delay is missing.
+    delay = flight.get("arrival_delay")
+    if delay is None:
+        delay = flight.get("departure_delay")
     lands = flight.get("estimated_on") or flight.get("actual_on") or flight.get("scheduled_on")
     return {
         "asked": asked,
@@ -179,10 +183,19 @@ def summarise(asked: str, flight: dict[str, Any] | None, position: Any) -> dict[
         "progress": flight.get("progress_percent"),
         "airborne": airborne(flight),
         "position": position,
-        "codeshare": bool(
-            (flight.get("ident_iata") or flight.get("ident") or asked).upper() != asked.upper()
-        ),
+        "codeshare": codeshare(asked, flight),
     }
+
+
+def codeshare(asked: str, flight: dict[str, Any]) -> bool:
+    """True if AeroAPI found the flight under a different number from the one asked.
+
+    A flight has an IATA number (BA117) and an ICAO one (BAW117); asking for
+    either finds the same flight, so only a number matching neither is a
+    codeshare.
+    """
+    idents = {str(flight.get(key) or "").upper() for key in ("ident", "ident_iata", "ident_icao")}
+    return asked.upper() not in idents
 
 
 class Command(BaseCommand):
@@ -191,14 +204,23 @@ class Command(BaseCommand):
     help = "Look up 20 real flights on AeroAPI (dry run unless --commit)."
 
     def add_arguments(self, parser: CommandParser) -> None:
-        """Take optional flight numbers and the --commit flag."""
+        """Take optional flight numbers and the --commit and --usage flags."""
         parser.add_argument("flights", nargs="*", help="Flight numbers (default: 20 of them).")
         parser.add_argument("--commit", action="store_true", help="Make the lookups (they cost).")
+        parser.add_argument(
+            "--usage", action="store_true", help="Print the account's cost so far (free)."
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         """Plan the run, and with --commit make it and print the results."""
         flights = [f.upper().replace(" ", "") for f in options["flights"]] or list(FLIGHTS)
         loud = options["verbosity"] > 0
+        if options["usage"]:
+            total = AeroApi(self.key()).usage()
+            if total is None:
+                raise CommandError("AeroAPI did not say what the account has used.")
+            self.stdout.write(f"AeroAPI usage this period: ${total:.3f}.")
+            return
         if not options["commit"]:
             most = len(flights) * 2 * PRICE_PER_QUERY
             self.stdout.write(
@@ -207,10 +229,7 @@ class Command(BaseCommand):
                 "Dry run; pass --commit."
             )
             return
-        key = settings.AEROAPI_KEY
-        if not key:
-            raise CommandError("AEROAPI_KEY is not set.")
-        api = AeroApi(key)
+        api = AeroApi(self.key())
         before = api.usage()
         now = datetime.now(tz=UTC)
         rows = []
@@ -226,8 +245,14 @@ class Command(BaseCommand):
             rows.append(summarise(asked, flight, position))
             if loud:
                 self.stdout.write(line(rows[-1]))
-        after = api.usage()
-        self.stdout.write(report(rows, api.queries, before, after))
+        self.stdout.write(report(rows, api.queries, before))
+
+    def key(self) -> str:
+        """Return AEROAPI_KEY, or stop before any query if it isn't set."""
+        key: str = settings.AEROAPI_KEY
+        if not key:
+            raise CommandError("AEROAPI_KEY is not set.")
+        return key
 
 
 def line(row: dict[str, Any]) -> str:
@@ -245,9 +270,7 @@ def line(row: dict[str, Any]) -> str:
     )
 
 
-def report(
-    rows: list[dict[str, Any]], queries: int, before: float | None, after: float | None
-) -> str:
+def report(rows: list[dict[str, Any]], queries: int, before: float | None) -> str:
     """Return the totals as Markdown, ready to paste into the issue."""
     found = [r for r in rows if r["found"]]
     flying = [r for r in found if r["airborne"]]
@@ -266,10 +289,14 @@ def report(
             f"{r['route']} | {r['status']} | {delay} | {'yes' if r['has_times'] else 'no'} "
             f"| {where} |"
         )
-    cost = (
-        f"${after - before:.3f} by AeroAPI's usage count"
-        if before is not None and after is not None
-        else f"about ${queries * PRICE_PER_QUERY:.3f} at the list price (usage not readable)"
+    # AeroAPI's usage count lags 10 to 20 minutes, so it can't measure this run
+    # yet: give the list price now, and the count to compare with later.
+    later = (
+        f"AeroAPI's usage count was ${before:.3f} before the run. It updates every "
+        "10 to 20 minutes, so run `aeroapi_check --usage` in half an hour for the "
+        "real cost."
+        if before is not None
+        else "AeroAPI's usage count could not be read."
     )
     lines += [
         "",
@@ -277,6 +304,6 @@ def report(
         f"{sum(r['has_times'] for r in found)} with scheduled times.",
         f"- In the air: {len(flying)}, of which {sum(bool(r['position']) for r in flying)} "
         "had a live position.",
-        f"- Queries: {queries}. Cost: {cost}.",
+        f"- Queries: {queries}, about ${queries * PRICE_PER_QUERY:.3f} at the list price. " + later,
     ]
     return "\n".join(lines)

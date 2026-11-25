@@ -88,7 +88,8 @@ def test_a_lookup_reports_coverage_position_and_cost(aeroapi: dict[str, Any]) ->
     assert "| XX1 | not found |" in printed
     assert "Found 1 of 2; 1 with scheduled times." in printed
     assert "In the air: 1, of which 1 had a live position." in printed
-    assert "Queries: 3. Cost: $0.025 by AeroAPI's usage count." in printed
+    assert "Queries: 3, about $0.015 at the list price." in printed
+    assert "usage count was $0.100 before the run" in printed
     assert {key for _, key in aeroapi["calls"]} == {"test-key"}
     assert "test-key" not in printed
     # Three paid queries, so two waits between them.
@@ -120,7 +121,7 @@ def test_usage_it_cannot_read_falls_back_to_the_list_price(
 
     monkeypatch.setattr(aeroapi_check, "opener", no_usage)
     printed = run("BA117", "--commit")
-    assert "about $0.005 at the list price (usage not readable)" in printed
+    assert "about $0.005 at the list price. AeroAPI's usage count could not be read." in printed
 
 
 def test_it_needs_a_key(aeroapi: dict[str, Any], settings: Any) -> None:
@@ -176,4 +177,41 @@ def test_a_flight_on_the_ground_has_no_position_to_find() -> None:
     )
     assert aeroapi_check.line(row).endswith(", no position")
     assert row["delay_minutes"] is None
-    assert "on the ground" in aeroapi_check.report([row], 1, None, None)
+    assert "on the ground" in aeroapi_check.report([row], 1, None)
+
+
+def test_an_icao_number_is_not_a_codeshare() -> None:
+    """Asking for EZY8812 and getting EZY8812 back (IATA U28812) is the same flight."""
+    flight = {**FLYING, "ident": "EZY8812", "ident_icao": "EZY8812", "ident_iata": "U28812"}
+    assert not aeroapi_check.codeshare("EZY8812", flight)
+    assert not aeroapi_check.codeshare("U28812", flight)
+    assert aeroapi_check.codeshare("BA8812", flight)
+
+
+def test_an_on_time_arrival_is_not_late_however_it_left() -> None:
+    """Arrival delay 0 means on time, even after leaving 20 minutes late."""
+    row = aeroapi_check.summarise(
+        "BA117", {**FLYING, "arrival_delay": 0, "departure_delay": 1200}, None
+    )
+    assert row["delay_minutes"] == 0
+    left_late = aeroapi_check.summarise(
+        "BA117", {**FLYING, "arrival_delay": None, "departure_delay": 1200}, None
+    )
+    assert left_late["delay_minutes"] == 20
+
+
+def test_usage_reads_the_account_total_for_free(aeroapi: dict[str, Any]) -> None:
+    """--usage prints the period's cost so far and makes no paid query."""
+    assert run("--usage") == "AeroAPI usage this period: $0.100.\n"
+    assert [path for path, _ in aeroapi["calls"]] == ["/account/usage"]
+
+
+def test_usage_it_cannot_read_fails(aeroapi: dict[str, Any], monkeypatch: Any) -> None:
+    """If AeroAPI won't give the total, --usage exits non-zero."""
+
+    def refused(request: Any) -> Any:
+        raise urllib.error.HTTPError(request.full_url, 500, "error", {}, None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(aeroapi_check, "opener", refused)
+    with pytest.raises(CommandError, match="did not say"):
+        run("--usage")

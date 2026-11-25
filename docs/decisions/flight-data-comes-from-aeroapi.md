@@ -23,7 +23,8 @@ python-decouple and set in Render's `flight` env group, never in source.
 `manage.py aeroapi_check` measures what AeroAPI covers before we build on
 it. It looks up 20 real flights (short-haul, long-haul and codeshares) and
 reports, for each one, whether it was found, its status, times, delay and
-live position, and what the run cost by AeroAPI's own usage count. Without
+live position, and what the run cost at the list price. AeroAPI's own
+usage count lags 10 to 20 minutes, so `--usage` reads it later, for free. Without
 `--commit` it spends nothing. It is a dev tool: the app doesn't call it.
 The run's results are recorded on RAS-124.
 
