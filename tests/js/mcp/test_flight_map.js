@@ -61,6 +61,13 @@ describe('flight map geometry', () => {
     expect(view.y).toBeLessThan(50);
   });
 
+  it('puts an airport code on the side away from the route', () => {
+    // The route leaves straight up, so the code sits straight below.
+    expect(self.FlightMap.labelAt([100, 100], [100, 50])).toEqual([100, 118]);
+    // The route leaves to the right, so the code sits to the left.
+    expect(self.FlightMap.labelAt([100, 100], [130, 100])).toEqual([82, 100]);
+  });
+
   it('says durations as people do', () => {
     expect(self.FlightMap.duration(100)).toBe('1 h 40 m');
     expect(self.FlightMap.duration(120)).toBe('2 h');
@@ -86,7 +93,12 @@ describe('flight map card', () => {
     expect(svg.querySelector('.land').getAttribute('d')).toBe('M0 0L10 0L10 10Z');
     expect(svg.querySelector('.flown')).not.toBeNull();
     expect(svg.querySelector('.plane')).not.toBeNull();
-    expect([...svg.querySelectorAll('.code')].map((t) => t.textContent)).toEqual(['LIS', 'LHR']);
+    const [lis, lhr] = svg.querySelectorAll('.code');
+    expect([lis.textContent, lhr.textContent]).toEqual(['LIS', 'LHR']);
+    // Lisbon is south of London: its code goes below the airport, London's above.
+    const [from, to] = svg.querySelectorAll('.airport');
+    expect(Number(lis.getAttribute('y'))).toBeGreaterThan(Number(from.getAttribute('cy')));
+    expect(Number(lhr.getAttribute('y'))).toBeLessThan(Number(to.getAttribute('cy')));
   });
 
   it('shows an on-time flight on the ground without a plane or a flown line', () => {

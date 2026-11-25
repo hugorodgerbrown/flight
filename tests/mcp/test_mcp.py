@@ -9,9 +9,8 @@ from django.test import Client
 from mcp_auth.testing import MCPAuthContract
 
 from apps.mcp.resources import MIME_TYPE, RESOURCES
-from apps.mcp.tools import TOOLS, ToolError, add_note, list_notes
-from apps.notes.models import Note
-from tests.factories import NoteFactory, UserFactory
+from apps.mcp.tools import TOOLS
+from tests.factories import UserFactory
 
 
 class TestMCPAuth(MCPAuthContract):
@@ -43,16 +42,9 @@ def rpc(user: Any) -> Any:
 def test_initialize_and_list_tools(rpc: Any) -> None:
     """Initialize names the server; tools/list lists every tool."""
     assert rpc("initialize")["serverInfo"]["name"]
+    assert "where_is" in rpc("initialize")["instructions"]
     names = {t["name"] for t in rpc("tools/list")["tools"]}
     assert names == set(TOOLS)
-
-
-def test_add_then_list_notes(rpc: Any, user: Any) -> None:
-    """add_note writes as the user; list_notes reads it back."""
-    rpc("tools/call", {"name": "add_note", "arguments": {"text": "from Claude"}})
-    result = rpc("tools/call", {"name": "list_notes", "arguments": {}})
-    assert result["structuredContent"]["notes"][0]["text"] == "from Claude"
-    assert Note.objects.get().owner == user
 
 
 def test_initialize_advertises_resources(rpc: Any) -> None:
@@ -94,7 +86,7 @@ def test_a_view_is_one_self_contained_document(rpc: Any, uri: str) -> None:
 
 def test_tools_without_ui_have_no_meta(rpc: Any) -> None:
     """A plain tool describes itself as before."""
-    described = next(t for t in rpc("tools/list")["tools"] if t["name"] == "add_note")
+    described = next(t for t in rpc("tools/list")["tools"] if t["name"] == "help")
     assert "_meta" not in described
 
 
@@ -147,22 +139,8 @@ def test_public_pages_come_back_as_markdown(rpc: Any, tool: str, heading: str) -
 
 def test_tool_errors_are_readable(rpc: Any) -> None:
     """A bad argument is an isError result, not a protocol error."""
-    result = rpc("tools/call", {"name": "list_notes", "arguments": {"limit": 0}})
+    result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": "nope"}})
     assert result["isError"] is True
-
-
-@pytest.mark.django_db
-def test_list_notes_is_per_user() -> None:
-    """A user's tools never see another user's notes."""
-    NoteFactory.create(text="private")
-    assert list_notes(UserFactory.create(), {}) == {"notes": []}
-
-
-@pytest.mark.django_db
-def test_add_note_validates() -> None:
-    """Empty text is refused with a message the model can act on."""
-    with pytest.raises(ToolError):
-        add_note(UserFactory.create(), {"text": ""})
 
 
 def call_endpoint(client: Client, body: Any, headers: dict[str, str] | None = None) -> Any:
@@ -190,7 +168,7 @@ def call_endpoint(client: Client, body: Any, headers: dict[str, str] | None = No
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "tools/call",
-                "params": {"name": "list_notes", "arguments": "x"},
+                "params": {"name": "where_is", "arguments": "x"},
             },
             200,
             -32602,

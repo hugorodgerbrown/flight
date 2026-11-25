@@ -14,8 +14,6 @@ from zoneinfo import ZoneInfo
 
 from django.utils import timezone
 
-from apps.notes.forms import NoteForm
-from apps.notes.models import Note
 from apps.public.pages import page_as_markdown
 
 
@@ -52,31 +50,6 @@ class Tool:
             # client reads the nested one.
             described["_meta"] = {"ui": {"resourceUri": self.ui}, "ui/resourceUri": self.ui}
         return described
-
-
-def list_notes(user: Any, args: dict[str, Any]) -> dict[str, Any]:
-    """Return the user's latest notes, newest first."""
-    limit = args.get("limit", 20)
-    if not isinstance(limit, int) or not 1 <= limit <= 100:
-        raise ToolError("limit must be a whole number from 1 to 100.")
-    notes = Note.objects.for_user(user)[:limit]
-    return {
-        "notes": [
-            {"uuid": str(n.uuid), "text": n.text, "written_at": n.written_at.isoformat()}
-            for n in notes
-        ]
-    }
-
-
-def add_note(user: Any, args: dict[str, Any]) -> dict[str, Any]:
-    """Add a note for the user."""
-    form = NoteForm({"text": args.get("text", "")})
-    if not form.is_valid():
-        raise ToolError("; ".join(f"{k}: {' '.join(map(str, v))}" for k, v in form.errors.items()))
-    note = form.save(commit=False)
-    note.owner = user
-    note.save()
-    return {"uuid": str(note.uuid), "text": note.text, "written_at": note.written_at.isoformat()}
 
 
 # RAS-125 spike: one fixed flight, timed around now, so the map view can be
@@ -147,10 +120,17 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
     progress = round(SAMPLE_FLOWN / (SAMPLE_FLOWN + SAMPLE_TO_GO), 3)
     to_go = int(SAMPLE_TO_GO.total_seconds() // 60)
     lands = _clock(arrives, SAMPLE_DESTINATION["tz"])
+    left = _clock(departed, SAMPLE_ORIGIN["tz"])
+    origin, destination = SAMPLE_ORIGIN, SAMPLE_DESTINATION
+    # Claude reads only this text, not the card, so it says everything the card shows.
     summary = (
-        f"{number} lands at {SAMPLE_DESTINATION['name']} at {lands}, in "
-        f"{_duration(to_go)}, {SAMPLE_DELAY_MINUTES} minutes late. "
-        "(Sample data: Flight is not connected to live flights yet.)"
+        f"{number} is in the air from {origin['name']} ({origin['code']}) to "
+        f"{destination['name']} ({destination['code']}), {round(progress * 100)}% of the "
+        f"way. It left at {left} local time and lands at {lands} local time, "
+        f"in {_duration(to_go)}, {SAMPLE_DELAY_MINUTES} "
+        "minutes late. The map shows its route and where it is now.\n\n"
+        "This is sample data: Flight is not yet connected to live flights, so this "
+        "is a made-up flight to show how an answer will look. Say so when you pass it on."
     )
     return {
         "markdown": summary,
@@ -161,7 +141,7 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
         "origin": SAMPLE_ORIGIN,
         "destination": SAMPLE_DESTINATION,
         "departed": departed.isoformat(),
-        "departed_local": _clock(departed, SAMPLE_ORIGIN["tz"]),
+        "departed_local": left,
         "arrives": arrives.isoformat(),
         "arrives_local": lands,
         "minutes_to_go": to_go,
@@ -190,27 +170,6 @@ NO_ARGUMENTS: dict[str, Any] = {"type": "object", "properties": {}}
 TOOLS: dict[str, Tool] = {
     t.name: t
     for t in [
-        Tool(
-            name="list_notes",
-            description="List the user's latest notes, newest first.",
-            input_schema={
-                "type": "object",
-                "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 100}},
-            },
-            func=list_notes,
-            ui="ui://notes/list",
-        ),
-        Tool(
-            name="add_note",
-            description="Add a note for the user.",
-            input_schema={
-                "type": "object",
-                "properties": {"text": {"type": "string", "maxLength": 2000}},
-                "required": ["text"],
-            },
-            func=add_note,
-            read_only=False,
-        ),
         Tool(
             name="where_is",
             description=(
