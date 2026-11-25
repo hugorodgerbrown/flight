@@ -7,7 +7,8 @@
 #   and origins under the parent domain, the SMTP relay).
 # - flight: this app's own (DATABASE_URL, DJANGO_SECRET_KEY,
 #   ACCOUNTS_EMAIL_KEY, the mail key and sender, SITE_URL and FIVEBAR_DOMAIN;
-#   FIVEBAR_TOKEN, added by hand, counts MCP tool calls).
+#   FIVEBAR_TOKEN, added by hand, counts MCP tool calls; AEROAPI_KEY, added
+#   by hand, is the FlightAware AeroAPI key).
 #
 # Both are referenced here, not declared, so a Blueprint sync never
 # overwrites them. To override a shared value for this app only, set it on

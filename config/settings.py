@@ -83,6 +83,10 @@ FIVEBAR_DOMAIN: str = config("FIVEBAR_DOMAIN", default="")
 # each MCP tool call is counted as a server event. See apps/mcp/events.py.
 FIVEBAR_TOKEN: str = config("FIVEBAR_TOKEN", default="")
 
+# FlightAware AeroAPI (Personal tier) for live flights; empty until set. Only
+# the RAS-124 check reads it so far (apps/core/management/commands/aeroapi_check.py).
+AEROAPI_KEY: str = config("AEROAPI_KEY", default="")
+
 # Content Security Policy: everything from this origin, nothing inline.
 # There is no inline <script> anywhere; the launch-screen gate is a tiny
 # blocking file instead, so the policy needs no nonce. htmx's eval and
