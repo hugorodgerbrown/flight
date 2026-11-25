@@ -150,97 +150,6 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# RAS-125 spike: one fixed flight, timed around now, so the map view can be
-# tried in Claude before any flight data is wired in. Replaced in phase 1.
-FLIGHT_NUMBER = re.compile(r"^(?:[A-Z]{2}|[A-Z]\d|\d[A-Z])[A-Z]?\d{1,4}[A-Z]?$")
-SAMPLE_ORIGIN: dict[str, Any] = {
-    "code": "LIS",
-    "name": "Lisbon",
-    "lat": 38.7742,
-    "lon": -9.1342,
-    "tz": "Europe/Lisbon",
-}
-SAMPLE_DESTINATION: dict[str, Any] = {
-    "code": "LHR",
-    "name": "London Heathrow",
-    "lat": 51.47,
-    "lon": -0.4543,
-    "tz": "Europe/London",
-}
-SAMPLE_FLOWN = timedelta(minutes=60)
-SAMPLE_TO_GO = timedelta(minutes=100)
-SAMPLE_DELAY_MINUTES = 12
-
-
-def great_circle(start: dict[str, Any], end: dict[str, Any], fraction: float) -> dict[str, float]:
-    """Return the point ``fraction`` of the way along the great circle from start to end."""
-    lat1, lon1, lat2, lon2 = map(math.radians, (start["lat"], start["lon"], end["lat"], end["lon"]))
-    angle = 2 * math.asin(
-        math.sqrt(
-            math.sin((lat2 - lat1) / 2) ** 2
-            + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
-        )
-    )
-    a = math.sin((1 - fraction) * angle) / math.sin(angle)
-    b = math.sin(fraction * angle) / math.sin(angle)
-    x = a * math.cos(lat1) * math.cos(lon1) + b * math.cos(lat2) * math.cos(lon2)
-    y = a * math.cos(lat1) * math.sin(lon1) + b * math.cos(lat2) * math.sin(lon2)
-    z = a * math.sin(lat1) + b * math.sin(lat2)
-    return {
-        "lat": round(math.degrees(math.atan2(z, math.hypot(x, y))), 4),
-        "lon": round(math.degrees(math.atan2(y, x)), 4),
-    }
-
-
-def _duration(minutes: int) -> str:
-    """Return ``minutes`` as "1 h 40 m", "2 h" or "25 m"."""
-    hours, mins = divmod(minutes, 60)
-    return (
-        " ".join(
-            part for part in (f"{hours} h" if hours else "", f"{mins} m" if mins else "") if part
-        )
-        or "0 m"
-    )
-
-
-def _clock(moment: Any, tz: str) -> str:
-    """Return ``moment`` as HH:MM in the time zone ``tz``."""
-    return str(moment.astimezone(ZoneInfo(tz)).strftime("%H:%M"))
-
-
-def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
-    """Return where a flight is now, with a map view (sample data for the spike)."""
-    number = re.sub(r"\s+", "", str(args.get("flight", ""))).upper()
-    if not FLIGHT_NUMBER.match(number):
-        raise ToolError("flight must be a flight number such as BA1234.")
-    now = timezone.now()
-    departed, arrives = now - SAMPLE_FLOWN, now + SAMPLE_TO_GO
-    progress = round(SAMPLE_FLOWN / (SAMPLE_FLOWN + SAMPLE_TO_GO), 3)
-    to_go = int(SAMPLE_TO_GO.total_seconds() // 60)
-    lands = _clock(arrives, SAMPLE_DESTINATION["tz"])
-    summary = (
-        f"{number} lands at {SAMPLE_DESTINATION['name']} at {lands}, in "
-        f"{_duration(to_go)}, {SAMPLE_DELAY_MINUTES} minutes late. "
-        "(Sample data: Flight is not connected to live flights yet.)"
-    )
-    return {
-        "markdown": summary,
-        "sample": True,
-        "flight": number,
-        "status": "airborne",
-        "delay_minutes": SAMPLE_DELAY_MINUTES,
-        "origin": SAMPLE_ORIGIN,
-        "destination": SAMPLE_DESTINATION,
-        "departed": departed.isoformat(),
-        "departed_local": _clock(departed, SAMPLE_ORIGIN["tz"]),
-        "arrives": arrives.isoformat(),
-        "arrives_local": lands,
-        "minutes_to_go": to_go,
-        "progress": progress,
-        "position": great_circle(SAMPLE_ORIGIN, SAMPLE_DESTINATION, progress),
-    }
-
-
 def privacy_policy(user: Any, args: dict[str, Any]) -> dict[str, str]:
     """Return the privacy notice: what is kept about the user, and why."""
     return page_as_markdown("privacy")
@@ -261,21 +170,6 @@ NO_ARGUMENTS: dict[str, Any] = {"type": "object", "properties": {}}
 TOOLS: dict[str, Tool] = {
     t.name: t
     for t in [
-        Tool(
-            name="where_is",
-            description=(
-                "Where a flight is now: its route, position, progress and landing time, "
-                "shown on a map. Give the flight number, such as BA1234."
-            ),
-            input_schema={
-                "type": "object",
-                "properties": {"flight": {"type": "string", "maxLength": 10}},
-                "required": ["flight"],
-            },
-            func=where_is,
-            markdown=True,
-            ui="ui://flight/map",
-        ),
         Tool(
             name="where_is",
             description=(
