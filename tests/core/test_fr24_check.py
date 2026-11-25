@@ -179,3 +179,16 @@ def test_an_answer_without_data_is_no_rows(fr24: dict[str, Any], monkeypatch: An
 
     monkeypatch.setattr(fr24_check, "opener", odd)
     assert run("--usage") == "Credits used in the last 24 hours: 0.\n"
+
+
+def test_a_live_leg_takes_only_its_own_summary() -> None:
+    """Yesterday's landed leg doesn't make today's flight in the air look landed."""
+    yesterday = {
+        **SUMMARY,
+        "fr24_id": "old",
+        "datetime_takeoff": "2026-11-24T16:20:00",
+        "datetime_landed": "2026-11-24T23:40:00",
+    }
+    assert fr24_check.pick_summary(LIVE, [yesterday]) is None
+    assert fr24_check.pick_summary(LIVE, [yesterday, SUMMARY]) is SUMMARY
+    assert fr24_check.pick_summary(None, [yesterday, SUMMARY]) is SUMMARY

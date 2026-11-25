@@ -130,6 +130,19 @@ def latest(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     return max(rows, key=lambda r: str(r.get("datetime_takeoff") or ""), default=None)
 
 
+def pick_summary(
+    live: dict[str, Any] | None, summaries: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Return the summary of the same leg as ``live``, or the latest leg if none is live.
+
+    A flight number flies a leg most days, so yesterday's landed leg must not
+    lend its landing time to today's flight in the air: legs join by fr24_id.
+    """
+    if live is None:
+        return latest(summaries)
+    return next((s for s in summaries if s.get("fr24_id") == live.get("fr24_id")), None)
+
+
 def summarise(
     asked: str, live: dict[str, Any] | None, summary: dict[str, Any] | None
 ) -> dict[str, Any]:
@@ -206,7 +219,7 @@ class Command(BaseCommand):
         rows = []
         for asked in flights:
             live = next((r for r in live_rows if matches(asked, r)), None)
-            summary = latest([r for r in summary_rows if matches(asked, r)])
+            summary = pick_summary(live, [r for r in summary_rows if matches(asked, r)])
             rows.append(summarise(asked, live, summary))
             if options["verbosity"] > 0:
                 self.stdout.write(line(rows[-1]))
