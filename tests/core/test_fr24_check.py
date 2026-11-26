@@ -196,9 +196,9 @@ def test_a_failed_batch_is_reported_and_the_run_finishes(
     err = io.StringIO()
     printed = run("BA117", "--commit", err=err)
     assert message in err.getvalue()
-    assert "| BA117 | lookup failed |" in printed
-    assert "BA117: lookup failed" in printed
-    assert "Lookups that failed: 1" in printed
+    assert "| BA117 | lookup failed (live position failed) |" in printed
+    assert "BA117: lookup failed (live position failed)" in printed
+    assert "Lookups with a failed call: 1, 0 of them partly answered" in printed
     assert any(r.levelname == "WARNING" and message in r.getMessage() for r in caplog.records)
 
 
@@ -350,3 +350,22 @@ def test_a_non_json_answer_fails_that_call(fr24: dict[str, Any], monkeypatch: An
     err = io.StringIO()
     run("BA117", "--commit", err=err)
     assert "isn't JSON" in err.getvalue()
+
+
+def test_a_partly_failed_lookup_is_marked_not_counted_as_coverage(fr24: dict[str, Any]) -> None:
+    """Live failed but the summary answered: the row keeps the summary and says live is unknown."""
+    fr24["answers"] = {"/live/flight-positions/full": 500, "/flight-summary/full": [LANDED]}
+    printed = run("EI154", "--commit")
+    assert "| EI154 | EI154 (live position failed) | DUB-LHR | unknown |" in printed
+    assert "EI154: EI154 DUB-LHR, on the ground; last took off" in printed
+    assert "Lookups with a failed call: 1, 1 of them partly answered" in printed
+
+
+def test_a_failed_summary_beside_a_live_answer_is_marked(fr24: dict[str, Any]) -> None:
+    """Live answered but the summary failed: the row says so."""
+    fr24["answers"] = {"/live/flight-positions/full": [LIVE], "/flight-summary/full": 500}
+    printed = run("BA117", "--commit")
+    assert "| BA117 | BA117 (summary failed) | LHR-JFK | yes |" in printed
+    assert (
+        "in the air at 55.1, -30.2, 38000 ft, ETA 2026-11-25T23:52:00Z (summary failed)" in printed
+    )

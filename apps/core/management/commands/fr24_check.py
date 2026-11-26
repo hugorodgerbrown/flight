@@ -304,9 +304,13 @@ def summarise(
     asked: str,
     live: dict[str, Any] | None,
     summary: dict[str, Any] | None,
-    failed: bool = False,
+    failed: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
-    """Return what Flightradar24 told us about one flight, as the report needs it."""
+    """Return what Flightradar24 told us about one flight, as the report needs it.
+
+    ``failed`` names the calls that failed for this flight ("live", "summary"),
+    so a missing answer isn't mistaken for a negative one.
+    """
     either = live or summary or {}
     origin = either.get("orig_iata") or either.get("orig_icao") or "?"
     destination = (
@@ -317,7 +321,7 @@ def summarise(
     )
     return {
         "asked": asked,
-        "failed": failed,
+        "failed": sorted(failed),
         "found": bool(live or summary),
         "flight": either.get("flight") or either.get("callsign") or "",
         "codeshare": bool(either) and not matches(asked, either),
@@ -376,7 +380,7 @@ class Command(BaseCommand):
         now = datetime.now(tz=UTC).replace(microsecond=0, tzinfo=None)
         live_rows: list[dict[str, Any]] = []
         summary_rows: list[dict[str, Any]] = []
-        failed: set[str] = set()
+        failed: dict[str, set[str]] = {}
         for batch in batches:
             numbers = ",".join(batch)
             calls = (
@@ -391,19 +395,20 @@ class Command(BaseCommand):
                     },
                 ),
             )
-            for into, path, params in calls:
+            for (into, path, params), kind in zip(calls, ("live", "summary"), strict=True):
                 try:
                     into += api.get(path, params)
                 except Stop:
                     raise
                 except CommandError as exc:
                     self.stderr.write(f"{LABELS[path].capitalize()} for {numbers} failed: {exc}")
-                    failed.update(batch)
+                    for asked in batch:
+                        failed.setdefault(asked, set()).add(kind)
         rows = []
         for asked in flights:
             live = next((r for r in live_rows if matches(asked, r)), None)
             summary = pick_summary(live, [r for r in summary_rows if matches(asked, r)])
-            rows.append(summarise(asked, live, summary, failed=asked in failed))
+            rows.append(summarise(asked, live, summary, failed=frozenset(failed.get(asked, ()))))
             if verbosity > 0:
                 self.stdout.write(line(rows[-1]))
         after = self.credits(api) if before is not None else None
@@ -449,14 +454,21 @@ def spent(before: dict[str, int] | None, after: dict[str, int] | None) -> dict[s
 
 def line(row: dict[str, Any]) -> str:
     """Return one lookup as a line of the progress output."""
+    gaps = f" ({gap(row)})" if row["failed"] else ""
     if not row["found"]:
-        return f"{row['asked']}: {'lookup failed' if row['failed'] else 'not found'}"
+        return f"{row['asked']}: {'lookup failed' if row['failed'] else 'not found'}{gaps}"
     if row["position"]:
         p = row["position"]
         where = f"in the air at {p['lat']}, {p['lon']}, {p['alt']} ft, ETA {row['eta'] or '?'}"
     else:
         where = f"on the ground; last took off {row['took_off'] or '?'}"
-    return f"{row['asked']}: {row['flight']} {row['route']}, {where}"
+    return f"{row['asked']}: {row['flight']} {row['route']}, {where}{gaps}"
+
+
+def gap(row: dict[str, Any]) -> str:
+    """Return which of a flight's calls failed, as in "live position failed"."""
+    names = {"live": "live position", "summary": "summary"}
+    return " and ".join(names[kind] for kind in row["failed"]) + " failed"
 
 
 def report(rows: list[dict[str, Any]], calls: int, credits: dict[str, int] | None) -> str:
@@ -467,16 +479,20 @@ def report(rows: list[dict[str, Any]], calls: int, credits: dict[str, int] | Non
     ]
     for r in rows:
         if not r["found"]:
-            missing = "lookup failed" if r["failed"] else "not found"
+            missing = f"lookup failed ({gap(r)})" if r["failed"] else "not found"
             lines.append(f"| {r['asked']} | {missing} | | | | | | |")
             continue
         found_as = f"{r['flight']}{' (codeshare)' if r['codeshare'] else ''}"
+        if r["failed"]:
+            found_as += f" ({gap(r)})"
+        # Without a live answer, "not in the air" isn't known.
+        airborne = "unknown" if "live" in r["failed"] else ("yes" if r["airborne"] else "no")
         lines.append(
-            f"| {r['asked']} | {found_as} | {r['route']} | {'yes' if r['airborne'] else 'no'} "
+            f"| {r['asked']} | {found_as} | {r['route']} | {airborne} "
             f"| {'yes' if r['position'] else ''} | {r['eta']} | {r['took_off']} | {r['landed']} |"
         )
     found = [r for r in rows if r["found"]]
-    failed = [r for r in rows if r["failed"] and not r["found"]]
+    failed = [r for r in rows if r["failed"]]
     by_endpoint = ", ".join(f"{k} {v}" for k, v in sorted((credits or {}).items()))
     lines += [
         "",
@@ -492,5 +508,9 @@ def report(rows: list[dict[str, Any]], calls: int, credits: dict[str, int] | Non
         ),
     ]
     if failed:
-        lines.append(f"- Lookups that failed: {len(failed)} (see the errors above).")
+        partial = sum(r["found"] for r in failed)
+        lines.append(
+            f"- Lookups with a failed call: {len(failed)}, {partial} of them partly answered "
+            "(see the errors above)."
+        )
     return "\n".join(lines)
