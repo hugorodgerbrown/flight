@@ -1,4 +1,4 @@
-"""Tests for the where_is spike tool (RAS-125): sample data, a map view."""
+"""Tests for the where_is tool (RAS-138): live Flightradar24 data, a map view."""
 
 from datetime import UTC, datetime
 from typing import Any
@@ -6,14 +6,17 @@ from typing import Any
 import pytest
 from freezegun import freeze_time
 
-from apps.mcp.tools import (
-    SAMPLE_DESTINATION,
-    SAMPLE_ORIGIN,
-    ToolError,
-    _duration,
-    great_circle,
-    where_is,
-)
+from apps.mcp.tools import ToolError, _duration, where_is
+from tests import fr24_fake
+from tests.fr24_fake import LIVE_BA117, SUMMARY_BA117, SUMMARY_EI154
+
+NOW = datetime(2026, 11, 26, 9, 32, tzinfo=UTC)
+
+
+@pytest.fixture
+def fr24(monkeypatch: Any, settings: Any, db: None) -> dict[str, Any]:
+    """Flightradar24, answered from memory."""
+    return fr24_fake.install(monkeypatch, settings)
 
 
 @pytest.fixture
@@ -28,29 +31,130 @@ def rpc(user: Any) -> Any:
     return call
 
 
-@freeze_time(datetime(2026, 11, 25, 16, 0, tzinfo=UTC))
-def test_where_is_answers_in_words_and_names_the_map(rpc: Any) -> None:
-    """The model reads one sentence; the view gets the flight as data."""
+@freeze_time(NOW)
+def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
+    rpc: Any, fr24: dict[str, Any]
+) -> None:
+    """The model reads the whole answer in the text; the view gets it as data."""
+    fr24["live"] = [LIVE_BA117]
+    fr24["summaries"] = [SUMMARY_BA117]
     described = next(t for t in rpc("tools/list")["tools"] if t["name"] == "where_is")
-    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map"
+    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v2"
 
-    result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": " ba 1234 "}})
+    result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": " ba 117 "}})
     (content,) = result["content"]
-    assert content["text"].startswith(
-        "BA1234 is in the air from Lisbon (LIS) to London Heathrow (LHR), 38% of the way. "
-        "It left at 15:00 local time and lands at 17:40 local time, in 1 h 40 m, "
-        "12 minutes late. The map shows its route and where it is now."
+    text = content["text"]
+    assert text.startswith(
+        "BA117 is in the air from London Heathrow Airport (LHR) to John F Kennedy "
+        "International Airport (JFK), "
     )
-    assert "sample data" in content["text"]
-    assert "made-up flight" in content["text"]
+    assert "% of the way, at 36,000 ft." in text
+    assert "It took off at 08:36 local time." in text
+    assert "It's due at 11:04 local time, in 6 h 33 m." in text
+    assert "The map shows its route and where it is now." in text
+    assert "can't say whether the flight is late" in text
+    assert "sample" not in text
     flight = result["structuredContent"]
-    assert flight["flight"] == "BA1234"
-    assert flight["sample"] is True
-    assert flight["origin"]["code"] == "LIS"
-    assert flight["departed_local"] == "15:00"
-    assert flight["arrives_local"] == "17:40"
-    assert flight["minutes_to_go"] == 100
-    assert flight["progress"] == pytest.approx(60 / 160, abs=0.001)
+    assert flight["status"] == "airborne"
+    assert flight["origin"]["code"] == "LHR"
+    assert flight["destination"]["tz"] == "America/New_York"
+    assert flight["position"] == {"lat": 53.90511, "lon": -8.71522}
+    assert 0.05 < flight["progress"] < 0.2
+    assert flight["departed_local"] == "08:36"
+    assert flight["arrives_local"] == "11:04"
+    assert flight["minutes_to_go"] == 393
+    assert "delay_minutes" not in flight
+
+
+@freeze_time(NOW)
+def test_a_landed_flight_says_where_and_when(fr24: dict[str, Any]) -> None:
+    """Not in the air, but landed in the last day: landed, with the whole route flown."""
+    fr24["summaries"] = [SUMMARY_EI154]
+    flight = where_is(None, {"flight": "EI154"})
+    assert flight["markdown"].startswith(
+        "EI154 landed at London Heathrow Airport (LHR) at 08:48 local time, from Dublin "
+        "Airport (DUB). It took off at 07:45 local time. The map shows the route it flew."
+    )
+    assert flight["status"] == "landed"
+    assert flight["progress"] == 1.0
+    assert flight["position"] is None
+
+
+@freeze_time(NOW)
+def test_a_flight_seen_leaving_but_not_now_tracked_says_so(fr24: dict[str, Any]) -> None:
+    """Took off, no live position, not landed: say what is known, nothing more."""
+    fr24["summaries"] = [SUMMARY_BA117]
+    flight = where_is(None, {"flight": "BA117"})
+    assert flight["markdown"].startswith(
+        "Flightradar24 has no live position for BA117 right now. Its latest flight took off "
+        "from London Heathrow Airport (LHR) at 08:36 local time for John F Kennedy "
+        "International Airport (JFK) and hasn't been reported landed."
+    )
+    assert flight["status"] == "lost"
+
+
+@freeze_time(NOW)
+def test_a_flight_without_an_eta_or_take_off_says_so(fr24: dict[str, Any]) -> None:
+    """Live but with no ETA and no summary yet: no times are made up."""
+    fr24["live"] = [{**LIVE_BA117, "eta": None, "alt": 0}]
+    text = where_is(None, {"flight": "BA117"})["markdown"]
+    assert "% of the way." in text
+    assert "took off" not in text
+    assert "Flightradar24 has no arrival estimate for it yet." in text
+
+
+@freeze_time(NOW)
+def test_a_flight_found_by_callsign_names_its_flight_number(fr24: dict[str, Any]) -> None:
+    """Asked for the callsign, the answer says the number Flightradar24 lists."""
+    fr24["live"] = [LIVE_BA117]
+    text = where_is(None, {"flight": "BAW17R"})["markdown"]
+    assert "Flightradar24 lists it as BA117." in text
+    assert fr24["params"][0] == {"callsigns": "BAW17R"}
+
+
+@freeze_time(NOW)
+def test_a_flight_that_ended_without_a_landing_isnt_called_landed(fr24: dict[str, Any]) -> None:
+    """flight_ended alone means "no longer tracked", not "landed"."""
+    fr24["summaries"] = [{**SUMMARY_BA117, "flight_ended": True}]
+    flight = where_is(None, {"flight": "BA117"})
+    assert flight["status"] == "lost"
+    assert "hasn't been reported landed" in flight["markdown"]
+
+
+def test_an_unknown_flight_explains_codeshares(fr24: dict[str, Any]) -> None:
+    """Nothing in the air or in the last day: a plain answer, with the codeshare tip."""
+    with pytest.raises(ToolError, match="no flight AA6143 in the air now") as caught:
+        where_is(None, {"flight": "AA6143"})
+    assert "operating airline's number" in str(caught.value)
+
+
+def test_an_unknown_flight_is_an_error_the_card_shows(rpc: Any, fr24: dict[str, Any]) -> None:
+    """The client gets isError, so the card shows the sentence instead of a map."""
+    result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": "AA6143"}})
+    assert result["isError"] is True
+    assert "codeshare" in result["content"][0]["text"]
+
+
+def test_no_key_means_not_connected(fr24: dict[str, Any], settings: Any) -> None:
+    """Without FR24_API_KEY nothing is asked, and the answer says why."""
+    settings.FR24_API_KEY = ""
+    with pytest.raises(ToolError, match="isn't connected to live flight data"):
+        where_is(None, {"flight": "BA117"})
+    assert fr24["calls"] == []
+
+
+@pytest.mark.parametrize(
+    ("status", "words"),
+    [(401, "key was refused"), (402, "key was refused"), (500, "couldn't be reached")],
+)
+def test_a_failed_lookup_is_one_plain_sentence(
+    fr24: dict[str, Any], status: int, words: str
+) -> None:
+    """Flightradar24 failing is a sentence the model can pass on; the key never appears."""
+    fr24["status"] = status
+    with pytest.raises(ToolError, match=words) as caught:
+        where_is(None, {"flight": "BA117"})
+    assert "test-key" not in str(caught.value)
 
 
 @pytest.mark.parametrize("flight", ["", "BA", "1234", "BA12345", "hello there", None])
@@ -61,23 +165,10 @@ def test_where_is_wants_a_flight_number(flight: Any) -> None:
 
 
 @pytest.mark.parametrize("flight", ["BA1234", "EZY8812", "U21", "LH400A"])
-def test_where_is_takes_airline_and_icao_numbers(flight: str) -> None:
-    """IATA two-letter and ICAO three-letter airline codes both work."""
-    assert where_is(None, {"flight": flight})["flight"] == flight
-
-
-def test_great_circle_ends_at_the_airports() -> None:
-    """Fraction 0 is the origin, 1 the destination, and the middle lies between."""
-    start = great_circle(SAMPLE_ORIGIN, SAMPLE_DESTINATION, 0)
-    end = great_circle(SAMPLE_ORIGIN, SAMPLE_DESTINATION, 1)
-    middle = great_circle(SAMPLE_ORIGIN, SAMPLE_DESTINATION, 0.5)
-    assert start == pytest.approx(
-        {"lat": SAMPLE_ORIGIN["lat"], "lon": SAMPLE_ORIGIN["lon"]}, abs=1e-3
-    )
-    assert end == pytest.approx(
-        {"lat": SAMPLE_DESTINATION["lat"], "lon": SAMPLE_DESTINATION["lon"]}, abs=1e-3
-    )
-    assert SAMPLE_ORIGIN["lat"] < middle["lat"] < SAMPLE_DESTINATION["lat"]
+def test_where_is_takes_airline_and_icao_numbers(fr24: dict[str, Any], flight: str) -> None:
+    """IATA two-letter and ICAO three-letter airline codes both get as far as asking."""
+    with pytest.raises(ToolError, match=f"no flight {flight} in the air"):
+        where_is(None, {"flight": flight})
 
 
 @pytest.mark.parametrize(

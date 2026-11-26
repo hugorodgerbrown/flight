@@ -82,10 +82,11 @@ RESOURCES: dict[str, UiResource] = {
     r.uri: r
     for r in [
         UiResource(
-            uri="ui://flight/map",
+            # Versioned: Claude caches a view by URI, so a changed card needs a new one.
+            uri="ui://flight/map-v2",
             name="flight_map",
             title="Flight",
-            description="One flight on a map: its route, position, progress and landing time.",
+            description="One flight on a map: its route, position, progress and ETA or landing.",
             html="flight_map.html",
             scripts=("flight_land.js", "flight_map.js"),
         ),

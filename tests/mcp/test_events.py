@@ -67,14 +67,14 @@ def call(user: Any, name: str, arguments: dict[str, Any], client: str = "claude"
 def test_a_tool_call_sends_one_event(sent: list[dict[str, Any]]) -> None:
     """The event names the tool, the app and a hashed caller, and nothing the person wrote."""
     user = UserFactory.create()
-    call(user, "where_is", {"flight": "BA1234"})
+    call(user, "help", {})
     [request] = sent
     assert request["url"] == "https://fiveb.ar/api/events"
     assert request["headers"]["Authorization"] == f"Bearer {TOKEN}"
     assert request["timeout"] == events.TIMEOUT
     assert request["body"] == {
         "site": DOMAIN,
-        "name": "/mcp/where_is",
+        "name": "/mcp/help",
         "id": events.caller_id(user),
         "client": "claude",
         "props": {"outcome": "ok"},

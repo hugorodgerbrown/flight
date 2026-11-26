@@ -15,6 +15,7 @@ from apps.accounts.models import (
     mask_email,
     username_for,
 )
+from apps.flights.models import Airport
 from apps.notes.models import Note
 
 
@@ -95,3 +96,22 @@ class NoteFactory(factory.django.DjangoModelFactory):
     owner = factory.SubFactory(UserFactory)
     text = factory.Faker("sentence")
     written_at = factory.LazyFunction(timezone.now)
+
+
+class AirportFactory(factory.django.DjangoModelFactory):
+    """A made-up airport, so it never clashes with the bundled ones."""
+
+    class Meta:
+        """Factory metadata."""
+
+        model = Airport
+        django_get_or_create = ("icao",)
+
+    iata = "QQQ"
+    icao = "QQQQ"
+    name = "Quayside Airport"
+    city = "Quayside"
+    country = "GB"
+    lat = 50.5
+    lon = -1.5
+    tz = "Europe/London"

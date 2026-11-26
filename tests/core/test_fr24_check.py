@@ -10,6 +10,7 @@ import pytest
 from django.core.management import CommandError, call_command
 
 from apps.core.management.commands import fr24_check
+from apps.flights import fr24 as client
 
 LIVE = {
     "fr24_id": "3a1b2c3d",
@@ -74,7 +75,7 @@ def fr24(monkeypatch: Any, settings: Any) -> dict[str, Any]:
         raise urllib.error.HTTPError(request.full_url, status, "error", {}, body)  # type: ignore[arg-type]
 
     def opener(request: Any) -> FakeResponse:
-        path, _, query = request.full_url.removeprefix(fr24_check.BASE_URL).partition("?")
+        path, _, query = request.full_url.removeprefix(client.BASE_URL).partition("?")
         state["calls"].append((path, query, dict(request.header_items())))
         if state["errors"].get(path):
             status = state["errors"][path].pop(0)
@@ -91,8 +92,8 @@ def fr24(monkeypatch: Any, settings: Any) -> dict[str, Any]:
     def pause(seconds: float) -> None:
         state["pauses"].append(seconds)
 
-    monkeypatch.setattr(fr24_check, "opener", opener)
-    monkeypatch.setattr(fr24_check, "pause", pause)
+    monkeypatch.setattr(client, "opener", opener)
+    monkeypatch.setattr(client, "pause", pause)
     return state
 
 
@@ -130,9 +131,9 @@ def test_a_lookup_reports_coverage_position_and_credits(fr24: dict[str, Any]) ->
     assert "flight_datetime_from=" in query
     assert headers["Authorization"] == "Bearer test-key"
     assert headers["Accept-version"] == "v1"
-    assert headers["User-agent"] == fr24_check.USER_AGENT
+    assert headers["User-agent"] == client.USER_AGENT
     assert "test-key" not in printed
-    assert fr24["pauses"] == [fr24_check.GAP_SECONDS] * 3
+    assert fr24["pauses"] == [client.GAP_SECONDS] * 3
 
 
 def test_twenty_flights_go_in_two_batches(fr24: dict[str, Any]) -> None:
@@ -153,8 +154,8 @@ def test_a_marketing_number_is_marked_as_a_codeshare() -> None:
 def test_the_latest_leg_wins() -> None:
     """Of two legs with one number, the later take-off is the one reported."""
     earlier = {**SUMMARY, "datetime_takeoff": "2026-11-24T16:20:00"}
-    assert fr24_check.latest([earlier, SUMMARY]) is SUMMARY
-    assert fr24_check.latest([]) is None
+    assert client.latest([earlier, SUMMARY]) is SUMMARY
+    assert client.latest([]) is None
 
 
 def test_usage_reads_the_credits(fr24: dict[str, Any]) -> None:
@@ -208,7 +209,7 @@ def test_an_unreachable_api_fails_the_command(fr24: dict[str, Any], monkeypatch:
     def down(request: Any) -> Any:
         raise OSError("no route")
 
-    monkeypatch.setattr(fr24_check, "opener", down)
+    monkeypatch.setattr(client, "opener", down)
     with pytest.raises(CommandError, match="could not be reached: OSError"):
         run("--usage")
 
@@ -219,7 +220,7 @@ def test_an_answer_without_data_is_no_rows(fr24: dict[str, Any], monkeypatch: An
     def odd(request: Any) -> FakeResponse:
         return FakeResponse(b'"nothing"')
 
-    monkeypatch.setattr(fr24_check, "opener", odd)
+    monkeypatch.setattr(client, "opener", odd)
     assert run("--usage", "-v", "0") == "Credits used in the last 24 hours: 0.\n"
 
 
@@ -231,9 +232,9 @@ def test_a_live_leg_takes_only_its_own_summary() -> None:
         "datetime_takeoff": "2026-11-24T16:20:00",
         "datetime_landed": "2026-11-24T23:40:00",
     }
-    assert fr24_check.pick_summary(LIVE, [yesterday]) is None
-    assert fr24_check.pick_summary(LIVE, [yesterday, SUMMARY]) is SUMMARY
-    assert fr24_check.pick_summary(None, [yesterday, SUMMARY]) is SUMMARY
+    assert client.pick_summary(LIVE, [yesterday]) is None
+    assert client.pick_summary(LIVE, [yesterday, SUMMARY]) is SUMMARY
+    assert client.pick_summary(None, [yesterday, SUMMARY]) is SUMMARY
 
 
 def test_an_error_shows_what_flightradar24_said(fr24: dict[str, Any]) -> None:
@@ -248,9 +249,9 @@ def test_an_error_shows_what_flightradar24_said(fr24: dict[str, Any]) -> None:
 def test_an_error_body_that_isnt_json_is_left_out() -> None:
     """A body that isn't a JSON object adds nothing to the message."""
     exc = urllib.error.HTTPError("u", 500, "error", {}, io.BytesIO(b"<html>"))  # type: ignore[arg-type]
-    assert fr24_check.explanation(exc) == ""
+    assert client.explanation(exc) == ""
     exc = urllib.error.HTTPError("u", 500, "error", {}, io.BytesIO(b"[1]"))  # type: ignore[arg-type]
-    assert fr24_check.explanation(exc) == ""
+    assert client.explanation(exc) == ""
 
 
 def test_a_rate_limited_call_is_tried_once_more(fr24: dict[str, Any]) -> None:
@@ -258,7 +259,7 @@ def test_a_rate_limited_call_is_tried_once_more(fr24: dict[str, Any]) -> None:
     fr24["errors"] = {"/live/flight-positions/full": [429]}
     fr24["answers"] = {"/live/flight-positions/full": [LIVE]}
     assert "in the air" in run("BA117", "--commit")
-    assert fr24_check.RETRY_SECONDS in fr24["pauses"]
+    assert client.RETRY_SECONDS in fr24["pauses"]
 
 
 def test_a_second_429_fails_that_call(fr24: dict[str, Any]) -> None:
@@ -314,9 +315,9 @@ def test_verbosity_two_shows_the_url_and_rate_limit_headers(
         response.headers = {"x-ratelimit-remaining": "9", "authorization": "secret"}  # type: ignore[attr-defined]
         return response
 
-    monkeypatch.setattr(fr24_check, "opener", headed)
+    monkeypatch.setattr(client, "opener", headed)
     printed = run("BA117", "--commit", "-v", "2")
-    assert f"GET {fr24_check.BASE_URL}/live/flight-positions/full?flights=BA117" in printed
+    assert f"GET {client.BASE_URL}/live/flight-positions/full?flights=BA117" in printed
     assert "x-ratelimit-remaining: 9" in printed
     assert "secret" not in printed
 
@@ -337,7 +338,7 @@ def test_credits_are_split_by_endpoint(fr24: dict[str, Any], monkeypatch: Any) -
         ]
     )
     monkeypatch.setattr(
-        fr24_check.Fr24Api,
+        client.Fr24Api,
         "get",
         lambda self, path, params: next(reads) if path == "/usage" else [],
     )
@@ -346,7 +347,7 @@ def test_credits_are_split_by_endpoint(fr24: dict[str, Any], monkeypatch: Any) -
 
 def test_a_non_json_answer_fails_that_call(fr24: dict[str, Any], monkeypatch: Any) -> None:
     """A body that isn't JSON is a failed call, logged and reported."""
-    monkeypatch.setattr(fr24_check, "opener", lambda request: FakeResponse(b"<html>"))
+    monkeypatch.setattr(client, "opener", lambda request: FakeResponse(b"<html>"))
     err = io.StringIO()
     run("BA117", "--commit", err=err)
     assert "isn't JSON" in err.getvalue()

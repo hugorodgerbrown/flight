@@ -4,16 +4,14 @@ Add a tool by writing a function and listing it in TOOLS with its JSON
 Schema. Raise ToolError for a mistake the model should see and correct.
 """
 
-import math
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from django.utils import timezone
-
+from apps.flights import lookup
 from apps.public.pages import page_as_markdown
 
 
@@ -52,46 +50,12 @@ class Tool:
         return described
 
 
-# RAS-125 spike: one fixed flight, timed around now, so the map view can be
-# tried in Claude before any flight data is wired in. Replaced in phase 1.
 FLIGHT_NUMBER = re.compile(r"^(?:[A-Z]{2}|[A-Z]\d|\d[A-Z])[A-Z]?\d{1,4}[A-Z]?$")
-SAMPLE_ORIGIN: dict[str, Any] = {
-    "code": "LIS",
-    "name": "Lisbon",
-    "lat": 38.7742,
-    "lon": -9.1342,
-    "tz": "Europe/Lisbon",
-}
-SAMPLE_DESTINATION: dict[str, Any] = {
-    "code": "LHR",
-    "name": "London Heathrow",
-    "lat": 51.47,
-    "lon": -0.4543,
-    "tz": "Europe/London",
-}
-SAMPLE_FLOWN = timedelta(minutes=60)
-SAMPLE_TO_GO = timedelta(minutes=100)
-SAMPLE_DELAY_MINUTES = 12
-
-
-def great_circle(start: dict[str, Any], end: dict[str, Any], fraction: float) -> dict[str, float]:
-    """Return the point ``fraction`` of the way along the great circle from start to end."""
-    lat1, lon1, lat2, lon2 = map(math.radians, (start["lat"], start["lon"], end["lat"], end["lon"]))
-    angle = 2 * math.asin(
-        math.sqrt(
-            math.sin((lat2 - lat1) / 2) ** 2
-            + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
-        )
-    )
-    a = math.sin((1 - fraction) * angle) / math.sin(angle)
-    b = math.sin(fraction * angle) / math.sin(angle)
-    x = a * math.cos(lat1) * math.cos(lon1) + b * math.cos(lat2) * math.cos(lon2)
-    y = a * math.cos(lat1) * math.sin(lon1) + b * math.cos(lat2) * math.sin(lon2)
-    z = a * math.sin(lat1) + b * math.sin(lat2)
-    return {
-        "lat": round(math.degrees(math.atan2(z, math.hypot(x, y))), 4),
-        "lon": round(math.degrees(math.atan2(y, x)), 4),
-    }
+# Said with every answer: Flightradar24 has no schedules, so no delay.
+NO_SCHEDULE = (
+    "Times are Flightradar24's: it tracks the aircraft, not the airline's schedule, so it "
+    "can't say whether the flight is late."
+)
 
 
 def _duration(minutes: int) -> str:
@@ -105,48 +69,80 @@ def _duration(minutes: int) -> str:
     )
 
 
-def _clock(moment: Any, tz: str) -> str:
-    """Return ``moment`` as HH:MM in the time zone ``tz``."""
-    return str(moment.astimezone(ZoneInfo(tz)).strftime("%H:%M"))
+def _clock(moment: str | None, tz: str) -> str | None:
+    """Return the ISO time ``moment`` as HH:MM in the time zone ``tz``, or None."""
+    if not moment:
+        return None
+    return str(datetime.fromisoformat(moment).astimezone(ZoneInfo(tz)).strftime("%H:%M"))
+
+
+def _airport(place: dict[str, Any]) -> str:
+    """Return an airport as "London Heathrow (LHR)"."""
+    return f"{place['name']} ({place['code']})"
 
 
 def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
-    """Return where a flight is now, with a map view (sample data for the spike)."""
+    """Return where a flight is now, from Flightradar24, with a map view."""
     number = re.sub(r"\s+", "", str(args.get("flight", ""))).upper()
     if not FLIGHT_NUMBER.match(number):
         raise ToolError("flight must be a flight number such as BA1234.")
-    now = timezone.now()
-    departed, arrives = now - SAMPLE_FLOWN, now + SAMPLE_TO_GO
-    progress = round(SAMPLE_FLOWN / (SAMPLE_FLOWN + SAMPLE_TO_GO), 3)
-    to_go = int(SAMPLE_TO_GO.total_seconds() // 60)
-    lands = _clock(arrives, SAMPLE_DESTINATION["tz"])
-    left = _clock(departed, SAMPLE_ORIGIN["tz"])
-    origin, destination = SAMPLE_ORIGIN, SAMPLE_DESTINATION
+    try:
+        flight = lookup.where(number)
+    except lookup.NotConnected:
+        raise ToolError(
+            f"Flight isn't connected to live flight data right now, so it can't say where "
+            f"{number} is."
+        ) from None
+    except lookup.Unavailable as exc:
+        raise ToolError(str(exc)) from None
+    if flight is None:
+        raise ToolError(
+            f"Flightradar24 has no flight {number} in the air now or in the last 24 hours. "
+            "It knows a flight by the number of the airline flying it, so if this is a "
+            "codeshare (sold by one airline, flown by another), try the operating airline's "
+            "number: it's on the booking or the airport's departures board."
+        )
+    origin, destination = flight["origin"], flight["destination"]
+    left = _clock(flight["departed"], origin["tz"])
+    due = _clock(flight["arrives"], destination["tz"])
     # Claude reads only this text, not the card, so it says everything the card shows.
-    summary = (
-        f"{number} is in the air from {origin['name']} ({origin['code']}) to "
-        f"{destination['name']} ({destination['code']}), {round(progress * 100)}% of the "
-        f"way. It left at {left} local time and lands at {lands} local time, "
-        f"in {_duration(to_go)}, {SAMPLE_DELAY_MINUTES} "
-        "minutes late. The map shows its route and where it is now.\n\n"
-        "This is sample data: Flight is not yet connected to live flights, so this "
-        "is a made-up flight to show how an answer will look. Say so when you pass it on."
-    )
-    return {
-        "markdown": summary,
-        "sample": True,
-        "flight": number,
-        "status": "airborne",
-        "delay_minutes": SAMPLE_DELAY_MINUTES,
-        "origin": SAMPLE_ORIGIN,
-        "destination": SAMPLE_DESTINATION,
-        "departed": departed.isoformat(),
+    if flight["status"] == lookup.AIRBORNE:
+        text = (
+            f"{number} is in the air from {_airport(origin)} to {_airport(destination)}, "
+            f"{round(flight['progress'] * 100)}% of the way"
+            + (f", at {flight['altitude_ft']:,} ft" if flight["altitude_ft"] else "")
+            + "."
+        )
+        if left:
+            text += f" It took off at {left} local time."
+        if due:
+            minutes = flight["minutes_to_go"]
+            text += f" It's due at {due} local time, in {_duration(minutes)}."
+        else:
+            text += " Flightradar24 has no arrival estimate for it yet."
+        text += " The map shows its route and where it is now."
+    elif flight["status"] == lookup.LANDED:
+        text = (
+            f"{number} landed at {_airport(destination)}"
+            + (f" at {due} local time" if due else "")
+            + f", from {_airport(origin)}."
+            + (f" It took off at {left} local time." if left else "")
+            + " The map shows the route it flew."
+        )
+    else:
+        text = (
+            f"Flightradar24 has no live position for {number} right now. Its latest flight "
+            f"took off from {_airport(origin)}"
+            + (f" at {left} local time" if left else "")
+            + f" for {_airport(destination)} and hasn't been reported landed. "
+            "The map shows that route."
+        )
+    if flight["operated_as"] != number:
+        text += f" Flightradar24 lists it as {flight['operated_as']}."
+    return flight | {
+        "markdown": f"{text}\n\n{NO_SCHEDULE}",
         "departed_local": left,
-        "arrives": arrives.isoformat(),
-        "arrives_local": lands,
-        "minutes_to_go": to_go,
-        "progress": progress,
-        "position": great_circle(SAMPLE_ORIGIN, SAMPLE_DESTINATION, progress),
+        "arrives_local": due,
     }
 
 
@@ -173,8 +169,9 @@ TOOLS: dict[str, Tool] = {
         Tool(
             name="where_is",
             description=(
-                "Where a flight is now: its route, position, progress and landing time, "
-                "shown on a map. Give the flight number, such as BA1234."
+                "Where a flight is now, from Flightradar24's live data: in the air (route, "
+                "position, altitude, progress and ETA), landed, or not found, shown on a map. "
+                "Give the operating airline's flight number, such as BA1234."
             ),
             input_schema={
                 "type": "object",
@@ -183,7 +180,7 @@ TOOLS: dict[str, Tool] = {
             },
             func=where_is,
             markdown=True,
-            ui="ui://flight/map",
+            ui="ui://flight/map-v2",
         ),
         Tool(
             name="privacy_policy",
