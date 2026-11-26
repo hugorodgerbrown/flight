@@ -163,11 +163,8 @@ def send_email(item: Follow, event: str, words: dict[str, str]) -> None:
         subject=words["subject"],
         body=render_to_string("alerts/emails/alert.txt", context),
         to=[item.user.email],
-        headers={
-            # One-click unsubscribe (RFC 8058): mail apps show their own Unsubscribe button.
-            "List-Unsubscribe": f"<{stop_url}>",
-            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-        },
+        # Mail apps show their own Unsubscribe button, which opens the stop page.
+        headers={"List-Unsubscribe": f"<{stop_url}>"},
     )
     mail.attach_alternative(render_to_string("alerts/emails/alert.html", context), "text/html")
     mail.send()

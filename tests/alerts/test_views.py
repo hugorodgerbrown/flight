@@ -251,12 +251,13 @@ def test_device_names(agent: str, name: str) -> None:
 
 @pytest.mark.django_db
 def test_an_email_stop_link_asks_then_stops(client: Client) -> None:
-    """GET asks (a link checker must not stop alerts); POST stops, signed out."""
+    """GET asks (a link checker must not stop alerts); the page's form stops, signed out."""
     item = FollowFactory.create()
     url = reverse("alerts:stop", args=[stop_token(item)])
     response = client.get(url)
     assert response.status_code == 200
     assert "Stop alerts for BA117?" in response.content.decode()
+    assert 'name="csrfmiddlewaretoken"' in response.content.decode()
     assert Follow.objects.exists()
     response = client.post(url)
     assert "Alerts for BA117 stopped" in response.content.decode()

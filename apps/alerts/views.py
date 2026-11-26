@@ -6,7 +6,8 @@
 - ``push_subscribe`` and ``push_unsubscribe`` take JSON from
   ``static/js/alerts.js`` when a browser turns notifications on or off.
 - ``email_stop`` is the stop link in every alert email: a signed token, so
-  it works without signing in, and answers a one-click POST from mail apps.
+  it works without signing in. It asks first, and stops on the page's own
+  (CSRF-protected) form.
 
 None of these go through the outbox: following needs the network to be
 worth anything (docs/decisions/alerts-poll-flight-summaries.md).
@@ -31,7 +32,6 @@ from django.http import (
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.accounts.models import User
@@ -191,10 +191,9 @@ def device_name(agent: str) -> str:
     return f"{browser} on {device}" if device else browser
 
 
-@csrf_exempt  # The signed token is the authority: a mail app's one-click POST has no CSRF token.
 @require_http_methods(["GET", "POST"])
 def email_stop(request: HttpRequest, token: str) -> HttpResponse:
-    """An email's stop link: GET asks, POST stops that flight's alerts (RFC 8058 one-click)."""
+    """An email's stop link: GET asks (so a link checker stops nothing), POST stops."""
     item = follow_for_token(token)
     if request.method == "POST":
         if item is not None:

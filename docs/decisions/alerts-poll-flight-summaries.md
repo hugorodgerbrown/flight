@@ -47,3 +47,7 @@ on Render with no always-on worker.
   faster but costs an always-on service.
 - Changing the VAPID keys breaks every browser's subscription: each person
   turns notifications on again.
+- The email's stop link opens a page that asks first, and stops on its
+  own CSRF-protected form. Mail apps' Unsubscribe button (List-Unsubscribe)
+  opens the same page; there is no one-click POST, which would need the
+  view to be exempt from CSRF.

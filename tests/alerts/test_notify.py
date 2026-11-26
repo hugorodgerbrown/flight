@@ -61,7 +61,7 @@ def test_the_email_has_text_html_and_a_one_click_stop(airborne: Any, settings: A
     (email,) = mail.outbox
     stop_url = f"https://flight.example.test/alerts/stop/{notify.stop_token(airborne)}/"
     assert email.extra_headers["List-Unsubscribe"] == f"<{stop_url}>"
-    assert email.extra_headers["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
+    assert "List-Unsubscribe-Post" not in email.extra_headers
     assert stop_url in email.body
     assert "https://flight.example.test/app/" in email.body
     assert "We'll email once more when it lands." in email.body
