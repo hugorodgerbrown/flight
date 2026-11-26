@@ -7,7 +7,7 @@ drew the icons in ``static/icons/`` from the same name and colour.
 
 APP_NAME = "Flight"
 SHORT_NAME = APP_NAME[:12]
-DESCRIPTION = "Flight: a personal flight tracker"
+DESCRIPTION = "Ask Claude where any flight is, and see it on a calm map."
 THEME_COLOUR = "#1d4ed8"
 BACKGROUND_COLOUR = "#ffffff"
 
@@ -36,7 +36,7 @@ PRECACHE_STATIC = [
     "js/outbox_core.js",
     "js/outbox.js",
     "js/pwa.js",
-    "js/notes.js",
+    "js/copy.js",
     "icons/icon-192.png",
 ]
 

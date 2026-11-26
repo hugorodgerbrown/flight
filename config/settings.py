@@ -122,7 +122,6 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.public",
     "apps.pwa",
-    "apps.notes",
     "apps.flights",
     "apps.design",
     # Before mcp_auth so the project's own templates win.
@@ -192,7 +191,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # outside the admin's own (unused) form. See docs/accounts.md.
 AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "accounts:sign_in"
-LOGIN_REDIRECT_URL = "notes:list"
+LOGIN_REDIRECT_URL = "flights:home"
 LOGOUT_REDIRECT_URL = "public:home"
 # An installed app should not sign people out while they are offline.
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 90
@@ -296,7 +295,7 @@ LOGGING = {
 # its own key), held to the callbacks below.
 OAUTH2_PROVIDER = oauth2_settings(
     resource_name=pwa_conf.APP_NAME,
-    scope_description="Read and add your notes",
+    scope_description="Look up where flights are",
 )
 MCP_AUTH = {
     "CAN_CONNECT": "mcp_auth.policy.active_user",

@@ -11,33 +11,41 @@ from django.urls import reverse
 
 from apps.core.idempotency import IdempotencyMiddleware
 from apps.core.models import IdempotencyRecord
-from apps.notes.models import Note
+from tests import outbox_endpoint
 from tests.factories import UserFactory
 
-URL = reverse("notes:create")
+URL = outbox_endpoint.URL
+
+pytestmark = pytest.mark.urls("tests.outbox_endpoint")
+
+
+@pytest.fixture(autouse=True)
+def _no_writes_yet() -> None:
+    """Count the endpoint's writes from zero in every test."""
+    outbox_endpoint.WRITES.clear()
 
 
 def post(client: Client, body: dict[str, Any], key: str | None = "key-1") -> Any:
-    """POST JSON to the note endpoint, with an Idempotency-Key unless key is None."""
+    """POST JSON to the outbox endpoint, with an Idempotency-Key unless key is None."""
     headers = {"Idempotency-Key": key} if key else {}
     return client.post(URL, json.dumps(body), content_type="application/json", headers=headers)
 
 
 def test_replay_returns_first_response_without_running_view_again(signed_in: Client) -> None:
-    """A repeat of a keyed write answers from the record; one note exists."""
+    """A repeat of a keyed write answers from the record; it writes once."""
     first = post(signed_in, {"text": "hello"})
     second = post(signed_in, {"text": "hello"})
     assert first.status_code == second.status_code == 201
     assert second.content == first.content
     assert second["Idempotent-Replayed"] == "true"
-    assert Note.objects.count() == 1
+    assert len(outbox_endpoint.WRITES) == 1
 
 
 def test_no_key_passes_through(signed_in: Client) -> None:
     """Without a key every request runs, as for a plain form."""
     post(signed_in, {"text": "a"}, key=None)
     post(signed_in, {"text": "a"}, key=None)
-    assert Note.objects.count() == 2
+    assert len(outbox_endpoint.WRITES) == 2
     assert not IdempotencyRecord.objects.exists()
 
 
@@ -45,7 +53,7 @@ def test_same_key_different_body_is_a_conflict(signed_in: Client) -> None:
     """A key reused for a different body gets 409, not the first response."""
     post(signed_in, {"text": "one"})
     assert post(signed_in, {"text": "two"}).status_code == 409
-    assert Note.objects.count() == 1
+    assert len(outbox_endpoint.WRITES) == 1
 
 
 def test_same_key_different_user_is_a_conflict(signed_in: Client, client: Client) -> None:
@@ -167,5 +175,13 @@ def test_exception_releases_the_key(rf: RequestFactory) -> None:
 
 def test_get_is_never_recorded(signed_in: Client) -> None:
     """Reads pass straight through, key or not."""
-    signed_in.get(reverse("notes:list"), headers={"Idempotency-Key": "k"})
+    signed_in.get(reverse("flights:home"), headers={"Idempotency-Key": "k"})
     assert not IdempotencyRecord.objects.exists()
+
+
+@pytest.mark.django_db
+def test_signed_out_write_is_a_401_not_a_redirect(client: Client) -> None:
+    """The outbox can't follow a redirect to sign in, so a signed-out write gets 401."""
+    response = post(client, {"text": "x"})
+    assert response.status_code == 401
+    assert not outbox_endpoint.WRITES

@@ -141,8 +141,64 @@ a { color: var(--brand); }
 .stack > * + .eyebrow { margin-top: var(--space-2xl); }
 .hero { padding: var(--space-3xl) 0 var(--space-lg); }
 .hero h1 { font-size: var(--type-3xl); }
+.hero h2 { font-size: var(--type-2xl); }
 .hero__lead { font-size: var(--type-lg); color: var(--text-2); margin: 0; }
 .hero__note { margin-top: var(--space-sm); color: var(--text-2); font-size: var(--type-sm); text-align: center; }
+
+/* The front page's parts (DESIGN.md, "The front page"). */
+
+/* The promise kept: a question asked in Claude, and the card Flight answers with. */
+.showcase { margin: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
+.showcase__ask {
+  align-self: flex-end;
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.showcase__card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+.showcase__card img { display: block; width: 100%; height: auto; }
+.showcase__caption { color: var(--text-2); font-size: var(--type-sm); }
+
+/* Jobs: an outcome, one sentence, and where it happens. */
+.job-list { list-style: none; margin: 0; padding: 0; }
+.job { padding: var(--space-lg) 0; }
+.job + .job { border-top: 1px solid var(--border); }
+.job p { margin: var(--space-xs) 0 0; }
+.job__where { color: var(--text-2); font-size: var(--type-sm); }
+/* A job that isn't built yet says so in words, not only by its colour. */
+.job--soon h2 { color: var(--text-2); }
+.tag {
+  display: inline-block;
+  margin-left: var(--space-xs);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+  font-size: var(--type-sm);
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+/* Things to ask, as Claude would be asked them. */
+.ask-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.ask {
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  font-size: var(--type-sm);
+}
+
+/* Facts: three true numbers, each removing a doubt. */
+.facts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-md); text-align: center; }
+.fact__number { display: block; font-size: var(--type-3xl); font-weight: 700; }
+.fact__label { display: block; color: var(--text-2); font-size: var(--type-sm); }
 
 /* An address to copy, and its button (js/copy.js shows it). */
 .copy-field { display: flex; align-items: center; gap: var(--space-sm); }
@@ -237,19 +293,6 @@ input.code-box:focus { border-color: var(--brand); outline: 2px solid var(--bran
 .item__title { margin: 0; font-weight: 600; }
 .item .meta { margin: var(--space-2xs) 0 0; }
 
-/* Notes */
-
-.note-list { list-style: none; margin: 0; padding: 0; }
-.note + .note { border-top: 1px solid var(--border); }
-.note { padding: var(--space-md) 0; }
-.note__text { margin: 0; overflow-wrap: anywhere; }
-.note__meta { margin: var(--space-xs) 0 0; color: var(--text-2); font-size: var(--type-sm); }
-.note--pending { opacity: 0.7; }
-.note--failed .note__meta { color: var(--error); }
-.note__actions { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); }
-.note--empty { color: var(--text-2); }
-/* A note waiting to send means the list isn't empty, whatever the server last said. */
-[data-pending-notes]:not(:empty) ~ #note-items .note--empty { display: none; }
 
 /* Offline and outbox state */
 

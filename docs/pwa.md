@@ -31,7 +31,7 @@
 3. In the page: `Outbox.enqueue({url, body: JSON.stringify(data), meta})`.
    `meta` is whatever you need to draw the pending item.
 4. Draw pending items from `Outbox.list()` on `outbox:changed`; refresh the
-   server-rendered part with htmx on `outbox:sent` (see `note_list.html`).
+   server-rendered part with htmx on `outbox:sent` (the template's notes sample did this; Flight has no offline write yet).
 5. Keep a no-JavaScript path: the form posts normally.
 
 You never mint keys or handle retries yourself; the outbox does.

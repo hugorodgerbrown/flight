@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ pwa.name }}{% endblock %}
+{% block extra_js %}<script src="{% static 'js/copy.js' %}" defer></script>{% endblock %}
+{% block content %}
+  <section class="card stack">
+    <h1>Ask Claude where your flight is</h1>
+    <p>{{ pwa.name }} works inside Claude. Add it once, then ask about any flight by its number, and Claude answers with a map card: where it left, where it is now and when it lands.</p>
+    <ul class="ask-list" aria-label="Things to ask">
+      {% for ask in example_asks %}<li class="ask">{{ ask }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% include "flights/_following.html" %}
+  {% if mcp_url %}
+    <section class="card stack" id="connect">
+      <h2>Add {{ pwa.name }} to Claude</h2>
+      <p>Paste this address into a custom connector in Claude, then sign in with this account when Claude asks.</p>
+      <p class="copy-field">
+        <code class="copy-field__value" id="mcp-url">{{ mcp_url }}</code>
+        <button class="button button--secondary" type="button" data-copy="{{ mcp_url }}" data-copy-target="mcp-url" data-copied-label="Copied" hidden>Copy</button>
+      </p>
+      <p><a href="{% url 'public:help' %}#use-with-ai">Step-by-step help</a></p>
+    </section>
+  {% endif %}
+{% endblock %}

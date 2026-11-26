@@ -1,45 +1,64 @@
 #!/usr/bin/env python3
-"""Draw placeholder app icons: the first letter of the name on the brand colour.
+"""Draw the app icons in static/icons/ from Flight's logo SVGs in docs/brand/.
 
-Run once by the project template; replace the PNGs with real artwork when
-there is some. Needs Pillow, which the project doesn't depend on:
+The SVGs are the source (docs/brand/README.md); this rasterises them with
+the Playwright browser the e2e tests already use, and writes the favicon.
+Needs Pillow for the .ico:
 
-    uv run --no-project --with pillow python bin/make-icons "My Project" "#1d4ed8"
+    uv run --group e2e --with pillow python bin/make-icons
 """
 
-import sys
+import io
+import logging
+import shutil
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
+from playwright.sync_api import sync_playwright
 
-OUT = Path(__file__).resolve().parent.parent / "static" / "icons"
+logger = logging.getLogger(__name__)
+
+ROOT = Path(__file__).resolve().parent.parent
+BRAND = ROOT / "docs" / "brand"
+OUT = ROOT / "static" / "icons"
+
+# (source SVG, output PNG, size in px). iOS ignores transparency, so its
+# icon is the full-bleed (maskable) tile, which it rounds itself.
+ICONS = [
+    ("flight-icon.svg", "icon-192.png", 192),
+    ("flight-icon.svg", "icon-512.png", 512),
+    ("flight-icon-maskable.svg", "icon-maskable-512.png", 512),
+    ("flight-icon-maskable.svg", "apple-touch-icon.png", 180),
+]
 
 
-def draw(size: int, letter: str, colour: str, *, maskable: bool) -> Image.Image:
-    """Return a square icon. Maskable icons keep the glyph in the inner 80% safe zone."""
-    image = Image.new("RGBA", (size, size), colour)
-    if not maskable:
-        # Rounded corners for the plain icon; a maskable one is cropped by the OS.
-        mask = Image.new("L", (size, size), 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, size, size), radius=size // 5, fill=255)
-        image.putalpha(mask)
-    font = ImageFont.load_default(size=int(size * (0.42 if maskable else 0.55)))
-    ImageDraw.Draw(image).text(
-        (size / 2, size / 2), letter, fill="#ffffff", font=font, anchor="mm"
-    )
-    return image
+def rasterise(page: object, svg: str, size: int) -> Image.Image:
+    """Return ``svg`` drawn at ``size`` px square, with a transparent background."""
+    sized = svg.replace('width="100" height="100"', f'width="{size}" height="{size}"', 1)
+    page.set_viewport_size({"width": size, "height": size})  # type: ignore[attr-defined]
+    page.set_content(f'<body style="margin:0">{sized}</body>')  # type: ignore[attr-defined]
+    png = page.screenshot(omit_background=True, clip={"x": 0, "y": 0, "width": size, "height": size})  # type: ignore[attr-defined]
+    return Image.open(io.BytesIO(png))
 
 
 def main() -> None:
-    """Write the icon set the manifest and base.html reference."""
-    name, colour = sys.argv[1], sys.argv[2]
-    letter = (name.strip()[:1] or "A").upper()
-    OUT.mkdir(parents=True, exist_ok=True)
-    draw(192, letter, colour, maskable=False).save(OUT / "icon-192.png")
-    draw(512, letter, colour, maskable=False).save(OUT / "icon-512.png")
-    draw(512, letter, colour, maskable=True).save(OUT / "icon-maskable-512.png")
-    # iOS ignores transparency and the manifest: an opaque 180px square.
-    draw(180, letter, colour, maskable=True).convert("RGB").save(OUT / "apple-touch-icon.png")
+    """Write every icon the manifest and _head.html reference."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        for source, name, size in ICONS:
+            image = rasterise(page, (BRAND / source).read_text(), size)
+            if name == "apple-touch-icon.png":
+                image = image.convert("RGB")
+            image.save(OUT / name, optimize=True)
+            logger.info("Wrote %s", name)
+        favicon = rasterise(page, (BRAND / "favicon.svg").read_text(), 48)
+        favicon.save(OUT / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)])
+        logger.info("Wrote favicon.ico")
+        browser.close()
+    shutil.copy(BRAND / "favicon.svg", OUT / "favicon.svg")
+    logger.info("Wrote favicon.svg")
 
 
 if __name__ == "__main__":

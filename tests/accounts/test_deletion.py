@@ -139,7 +139,7 @@ def test_stored_outbox_replies_for_the_account_go() -> None:
         return IdempotencyRecord.objects.create(
             key=key,
             method="POST",
-            path="/app/notes/",
+            path="/app/test-outbox/",
             principal=principal,
             body_hash="0" * 64,
             response_body=b'{"text": "private"}',

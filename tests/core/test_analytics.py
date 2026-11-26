@@ -40,7 +40,7 @@ def test_no_tag_while_off(client: Client) -> None:
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("url_name", ["public:home", "public:privacy", "notes:list"])
+@pytest.mark.parametrize("url_name", ["public:home", "public:privacy", "flights:home"])
 def test_every_page_has_the_tag_once(signed_in: Client, settings: Any, url_name: str) -> None:
     """Public and app pages alike: one async tag, with the site's domain and status."""
     settings.FIVEBAR_DOMAIN = DOMAIN

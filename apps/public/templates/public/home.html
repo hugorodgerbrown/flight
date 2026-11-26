@@ -1,22 +1,101 @@
 {% extends "public_base.html" %}
-{# A placeholder front page: replace it with the app's own. DESIGN.md, "The front page", suggests a structure and the design page has the parts. #}
-{% block title %}{{ pwa.name }}{% endblock %}
-{% block description %}{{ pwa.description }}{% endblock %}
+{% load static %}
+{# The front page, built to DESIGN.md "The front page": the promise, the card that keeps it, the jobs, how to connect, facts, and the way in again. #}
+{% block title %}{{ pwa.name }}, the calm flight tracker{% endblock %}
+{% block description %}Ask Claude where any flight is and see it on a calm map: where it left, where it is now and when it lands. No radar screen, no ads.{% endblock %}
+{% block share_title %}Where's your flight? Just ask.{% endblock %}
+{% block share_description %}Ask Claude where any flight is and see it on a calm map.{% endblock %}
+{% block share_image_alt %}A question in Claude, "Where is BA117?", answered with Flight's map card.{% endblock %}
+{% block extra_js %}<script src="{% static 'js/copy.js' %}" defer></script>{% endblock %}
 {% block content %}
   <section class="hero stack">
-    <h1>{{ pwa.name }}</h1>
-    <p class="hero__lead">{{ pwa.description }}</p>
+    <p class="eyebrow">Flight tracking, in Claude</p>
+    <h1>Where's your flight? Just ask.</h1>
+    <p class="hero__lead">Ask Claude about any flight, and {{ pwa.name }} draws it on a calm map: where it left, where it is now and when it lands.</p>
     {% if user.is_authenticated %}
-      <a class="button button--block" href="{% url 'notes:list' %}">Open the app</a>
+      <a class="button button--block" href="{% url 'flights:home' %}">Open {{ pwa.name }}</a>
     {% else %}
-      <a class="button button--block" href="{% url 'accounts:sign_in' %}?next={% url 'notes:list' %}">Get started</a>
-      <p class="hero__note">Free. Sign in with your email, no password.</p>
+      <a class="button button--block" href="{% if mcp_url %}#connect{% else %}{% url 'accounts:sign_in' %}{% endif %}">Connect {{ pwa.name }} to Claude</a>
+      <p class="hero__note">Free during early access, for invited accounts. No password.</p>
     {% endif %}
   </section>
+
+  <section class="stack" aria-label="An example">
+    <figure class="showcase">
+      <p class="showcase__ask">Where is BA117?</p>
+      <div class="showcase__card">
+        <picture>
+          <source srcset="{% static 'img/home-card-dark.png' %}" media="(prefers-color-scheme: dark)">
+          <img src="{% static 'img/home-card-light.png' %}" width="440" height="435" alt="Flight's map card: BA117 from London Heathrow to New York JFK, over the Atlantic, 36% of the way, due at 11:04.">
+        </picture>
+      </div>
+      <figcaption class="showcase__caption">The solid line is the way it has flown, the dot is the plane now and the dotted line is the way still to go. Long-haul flights are drawn on a globe.</figcaption>
+    </figure>
+  </section>
+
+  <section class="card">
+    <ul class="job-list">
+      <li class="job">
+        <h2>Know when to leave for arrivals</h2>
+        <p>See when it lands at a glance, and set off when it's time, not an hour early.</p>
+        <p class="job__where">In Claude</p>
+      </li>
+      <li class="job">
+        <h2>Just the one flight</h2>
+        <p>No radar of every plane in the sky: {{ pwa.name }} shows the flight you asked about, and the path it has really flown.</p>
+        <p class="job__where">In Claude</p>
+      </li>
+      <li class="job">
+        <h2>Answers in words too</h2>
+        <p>Claude reads the same facts the card shows, so you can follow up: "Will it land before 8?"</p>
+        <p class="job__where">In Claude</p>
+      </li>
+      <li class="job job--soon">
+        <h2>Hear when it takes off and lands <span class="tag">Coming soon</span></h2>
+        <p>Alerts when it takes off and lands, by push or email.</p>
+        <p class="job__where">In the {{ pwa.name }} app</p>
+      </li>
+      <li class="job job--soon">
+        <h2>Share a live link <span class="tag">Coming soon</span></h2>
+        <p>Send whoever is meeting you a link that follows the flight as it moves.</p>
+        <p class="job__where">In the {{ pwa.name }} app</p>
+      </li>
+    </ul>
+  </section>
+
   {% if mcp_url %}
-    <section class="card stack" id="mcp">
-      <h2>Use it from Claude or ChatGPT</h2>
-      <p><a href="{% url 'public:help' %}#use-with-ai">How to add it as a connector</a></p>
+    <section class="card stack" id="connect">
+      <h2>Add {{ pwa.name }} to Claude</h2>
+      <p>Looking up a flight saves nothing about you. You sign in once, when you connect, so only you can use your connection.</p>
+      <p class="eyebrow">Try asking</p>
+      <ul class="ask-list">
+        <li class="ask">Where is BA117?</li>
+        <li class="ask">When does EZY8461 land?</li>
+        <li class="ask">Has QF1 taken off yet?</li>
+      </ul>
+      <p class="eyebrow">The connector's address</p>
+      <p class="copy-field">
+        <code class="copy-field__value" id="mcp-url">{{ mcp_url }}</code>
+        <button class="button button--secondary" type="button" data-copy="{{ mcp_url }}" data-copy-target="mcp-url" data-copied-label="Copied" hidden>Copy</button>
+      </p>
+      <p><a href="{% url 'public:help' %}#use-with-ai">Step-by-step help</a></p>
     </section>
   {% endif %}
+
+  <section class="card">
+    <ul class="facts">
+      <li><span class="fact__number">0</span><span class="fact__label">passwords</span></li>
+      <li><span class="fact__number">1</span><span class="fact__label">flight on the map: yours</span></li>
+      <li><span class="fact__number">0</span><span class="fact__label">ads</span></li>
+    </ul>
+  </section>
+
+  <section class="hero stack">
+    <h2>Your flight, and nothing else.</h2>
+    {% if user.is_authenticated %}
+      <a class="button button--block" href="{% url 'flights:home' %}">Open {{ pwa.name }}</a>
+    {% else %}
+      <a class="button button--block" href="{% if mcp_url %}#connect{% else %}{% url 'accounts:sign_in' %}{% endif %}">Connect {{ pwa.name }} to Claude</a>
+    {% endif %}
+  </section>
 {% endblock %}

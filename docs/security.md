@@ -17,7 +17,7 @@ What is on by default, and what checks it.
 | Post-sign-in redirects stay on this site | `apps/core/redirects.py` | `tests/core/test_redirects.py` |
 | Signing out drops cached pages on the device | `pwa.js`; signed-in pages sent `no-store` (`apps/core/private_pages.py`) | `tests/accounts/test_views.py`, `tests/core/test_private_pages.py` |
 | Each keyed write runs at most once, per user, per body | `apps/core/idempotency.py` | `tests/core/test_idempotency.py` |
-| Signed-out writes get 401, never a redirect | `login_required_json` | `tests/notes/test_views.py` |
+| Signed-out writes get 401, never a redirect | `login_required_json` | `tests/core/test_idempotency.py` |
 | Fragments refuse non-htmx requests | `require_htmx` | `tests/core/test_decorators.py` |
 | Python security lint (bandit rules) | ruff `S` | `tox -e lint` |
 | Static analysis: Django, Python, JS, security-audit packs | semgrep | `tox -e sast` (CI and weekly) |
