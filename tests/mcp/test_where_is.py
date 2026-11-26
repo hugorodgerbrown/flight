@@ -39,7 +39,7 @@ def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
     fr24["live"] = [LIVE_BA117]
     fr24["summaries"] = [SUMMARY_BA117]
     described = next(t for t in rpc("tools/list")["tools"] if t["name"] == "where_is")
-    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v4"
+    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v5"
 
     result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": " ba 117 "}})
     (content,) = result["content"]
@@ -72,6 +72,7 @@ def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
 def test_a_landed_flight_says_where_and_when(fr24: dict[str, Any]) -> None:
     """Not in the air, but landed in the last day: landed, with the whole route flown."""
     fr24["summaries"] = [SUMMARY_EI154]
+    fr24["tracks"] = {"4b2c3d4e": [{"timestamp": "t", "lat": 53.4, "lon": -6.2}]}
     flight = where_is(None, {"flight": "EI154"})
     assert flight["markdown"].startswith(
         "EI154 landed at London Heathrow Airport (LHR) at 08:48 local time, from Dublin "
@@ -80,6 +81,7 @@ def test_a_landed_flight_says_where_and_when(fr24: dict[str, Any]) -> None:
     assert flight["status"] == "landed"
     assert flight["progress"] == 1.0
     assert flight["position"] is None
+    assert flight["path"] == [[53.4, -6.2]]
 
 
 @freeze_time(NOW)
@@ -163,7 +165,8 @@ def test_a_flight_that_ended_without_a_landing_isnt_called_landed(fr24: dict[str
     assert flight["status"] == "lost"
     assert "hasn't been reported landed" in flight["markdown"]
     # An ended flight's old track isn't passed off as where it is now.
-    assert "/flight-tracks" not in fr24["calls"]
+    assert flight["position"] is None
+    assert flight["path"] == []
 
 
 def test_an_unknown_flight_explains_codeshares(fr24: dict[str, Any]) -> None:
