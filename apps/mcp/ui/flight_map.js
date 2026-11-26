@@ -3,9 +3,12 @@
  *
  * The map is the land from flight_land.js (Web Mercator in degrees: x =
  * longitude + 180, y = 0 at 85 degrees north), cropped to the route. The
- * route is the great circle between the airports: flown part solid, the
- * rest dashed, the plane one accent dot. Everything from the result goes
- * in as text, never as markup.
+ * route is the great circle between the airports, dashed. With a position,
+ * the line goes through the plane (RAS-141): solid from the origin to the
+ * plane, dashed from the plane to the destination, since a plane on an
+ * ocean track can be hundreds of miles off the shortest route. Without
+ * one, the flown fraction is solid. The plane is one accent dot.
+ * Everything from the result goes in as text, never as markup.
  */
 (function () {
   'use strict';
@@ -90,10 +93,22 @@
     return [airport[0] - (dx / length) * LABEL_GAP, airport[1] - (dy / length) * LABEL_GAP];
   }
 
+  // The lines to draw: [flown, ahead], each a list of points. Through the
+  // plane when there's a position, along the airports' great circle when not.
+  function legs(flight) {
+    const { origin, destination } = flight;
+    if (flight.position && flight.status === 'airborne') {
+      const plane = { lat: Number(flight.position.lat), lon: Number(flight.position.lon) };
+      return [greatCircle(origin, plane, 1, STEPS), greatCircle(plane, destination, 1, STEPS)];
+    }
+    const progress = Math.max(0, Math.min(1, Number(flight.progress) || 0));
+    return [progress > 0 ? greatCircle(origin, destination, progress, STEPS) : [], greatCircle(origin, destination, 1, STEPS)];
+  }
+
   function draw(svg, flight) {
     const { origin, destination } = flight;
-    const progress = Math.max(0, Math.min(1, Number(flight.progress) || 0));
-    const route = greatCircle(origin, destination, 1, STEPS);
+    const [flown, ahead] = legs(flight);
+    const route = [...flown, ...ahead];
     const view = frame(route.map((p) => project(p.lon, p.lat)));
     const at = (p) => {
       const [x, y] = project(p.lon, p.lat);
@@ -105,13 +120,13 @@
       d: self.FlightLand || '',
       transform: `translate(${(-view.x * view.scale).toFixed(2)} ${(-view.y * view.scale).toFixed(2)}) scale(${view.scale.toFixed(4)})`,
     });
-    const parts = [land, el('path', { class: 'ahead', d: line(route, view) })];
-    if (progress > 0) {
-      parts.push(el('path', { class: 'flown', d: line(greatCircle(origin, destination, progress, STEPS), view) }));
-    }
+    const parts = [land, el('path', { class: 'ahead', d: line(ahead, view) })];
+    if (flown.length) parts.push(el('path', { class: 'flown', d: line(flown, view) }));
+    // Each code sits away from the line leaving its airport.
+    const first = flown.length ? flown : ahead;
     const ends = [
-      [origin, route[1]],
-      [destination, route[STEPS - 1]],
+      [origin, first[1]],
+      [destination, ahead[ahead.length - 2]],
     ];
     for (const [airport, next] of ends) {
       const [x, y] = at(airport);
@@ -188,7 +203,7 @@
     draw(q('map'), flight);
   }
 
-  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence, pillFor };
+  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence, pillFor, legs };
 
   if (!self.McpApp) return;
   const status = document.querySelector('[data-status]');

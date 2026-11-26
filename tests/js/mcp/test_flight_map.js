@@ -74,6 +74,30 @@ describe('flight map geometry', () => {
   });
 });
 
+describe('the route through the plane', () => {
+  it('runs the line through a plane that is off the airports\' great circle', () => {
+    // BA117 over the North Atlantic, well north of the LHR-JFK great circle.
+    const flight = {
+      ...FLIGHT,
+      origin: { code: 'LHR', lat: 51.47, lon: -0.4543 },
+      destination: { code: 'JFK', lat: 40.6398, lon: -73.7789 },
+      position: { lat: 60.5, lon: -35.2 },
+    };
+    const [flown, ahead] = self.FlightMap.legs(flight);
+    const close = (a, b) => Math.abs(a.lat - b.lat) < 1e-6 && Math.abs(a.lon - b.lon) < 1e-6;
+    expect(close(flown[0], flight.origin)).toBe(true);
+    expect(close(flown[flown.length - 1], flight.position)).toBe(true);
+    expect(close(ahead[0], flight.position)).toBe(true);
+    expect(close(ahead[ahead.length - 1], flight.destination)).toBe(true);
+  });
+
+  it('draws the flown fraction of the airports\' great circle without a position', () => {
+    const [flown, ahead] = self.FlightMap.legs({ ...FLIGHT, status: 'lost', position: null, progress: 0 });
+    expect(flown).toEqual([]);
+    expect(ahead.length).toBeGreaterThan(2);
+  });
+});
+
 describe('flight map card', () => {
   it('draws a flight in the air: sentence, route, plane, height and ETA, all as text', () => {
     onResult({ structuredContent: { ...FLIGHT, flight: '<b>BA1234</b>' } });
