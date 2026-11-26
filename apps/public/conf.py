@@ -7,17 +7,18 @@ the project template from its answers; edit freely.
 """
 
 # Who runs the site, as the terms and privacy notice name them: the
-# controller under UK GDPR. A company gives its registered name, number and
-# registered office; a person their name and a postal address for notices.
+# controller under UK GDPR, which must be identified by name. Like the other
+# Titan apps, no postal address: the contact address below is the way to
+# reach us. Set OPERATOR_ADDRESS to add one (a company's registered office).
 OPERATOR = "Hugo Rodger-Brown"
-OPERATOR_ADDRESS = "[ADD: postal address]"
+OPERATOR_ADDRESS = ""
 
 # The date the terms and privacy notice last changed; bump it with them.
 LEGAL_UPDATED = "26 November 2026"
 
 # Where people write to us: the help page, the terms and the privacy
 # notice all give this address.
-CONTACT_EMAIL = "support@ultraniche.ai"
+CONTACT_EMAIL = "flight@ultraniche.ai"
 
 # The footer's copyright line: "© <this year> <holder>. All rights reserved."
 COPYRIGHT_HOLDER = "Hugo Rodger-Brown"
