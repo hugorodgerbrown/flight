@@ -20,13 +20,14 @@ apps/core/       BaseModel, IdempotencyMiddleware + IdempotencyRecord,
 apps/accounts/   sign-in by emailed link or code (SignInRequest), passkeys
                  (Passkey), sign-out, /app/account/ and deleting the
                  account from it (deletion.py; docs/accounts.md)
-apps/public/     the public pages: /, /terms/, /privacy/, /help/ (placeholders);
+apps/public/     the public pages: / (Flight's front page), /terms/, /privacy/
+                 (placeholders), /help/;
                  each body is one _<name>_body.html, also served as Markdown
 apps/pwa/        /app/manifest.webmanifest, /app/sw.js, /app/offline/;
                  conf.py holds the app's identity, SCOPE and the precache list
-apps/notes/      the example offline-capable feature, at /app/; replace it
-apps/flights/    the Flightradar24 client (fr24.py), Airport, and the live
-                 lookup behind where_is (lookup.py)
+apps/flights/    the Flightradar24 client (fr24.py), Airport, the live
+                 lookup behind where_is (lookup.py), and the app's home
+                 at /app/ (views.home)
 apps/design/     the design page (/app/design/, staff only): every token
                  and every component state (DESIGN.md)
 apps/mcp/        the MCP endpoint (/mcp) and its tools; auth is mcp-auth.
@@ -43,6 +44,7 @@ static/css/      app.css: the design system's tokens on :root, components
                  below (DESIGN.md)
 docs/            accounts, testing, user-testing, onboarding-tour, pwa,
                  security, performance, decisions/
+docs/brand/      the Route logo as SVG; bin/make-icons draws static/icons/
 .claude/skills/  writing the Titan docs kept in Linear (research, user
                  testing script, blog post), each with a length setting
 ```
@@ -54,7 +56,7 @@ uv sync && npm install
 uv run python manage.py runserver
 uv run tox                      # every check CI runs (except e2e, sast)
 uv run tox -e e2e               # Playwright journeys
-uv run pytest tests/notes       # targeted run while iterating
+uv run pytest tests/flights     # targeted run while iterating
 ```
 
 Never run a bare `pytest`; use `uv run`. Dependencies: `uv add` /

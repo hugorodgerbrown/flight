@@ -47,11 +47,20 @@ def without_mcp(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(views, "mcp_url", lambda: "")
 
 
-def test_home_offers_one_way_in(client: Client) -> None:
-    """Signed out, the one action goes to sign in, onwards to the app."""
+def test_home_offers_one_way_in(client: Client, with_mcp: str) -> None:
+    """Signed out, the one action is connecting Flight to Claude, at the connect section."""
     content = client.get(reverse("public:home")).content.decode()
-    assert f'href="{reverse("accounts:sign_in")}?next={reverse("notes:list")}"' in content
+    body = content.split("</header>")[1]
+    assert body.count('href="#connect">Connect Flight to Claude</a>') == 2
+    assert 'id="connect"' in body
     assert "Create an account" not in content
+
+
+def test_home_without_mcp_offers_sign_in(client: Client, without_mcp: None) -> None:
+    """With no connector to add, the action signs in instead."""
+    content = client.get(reverse("public:home")).content.decode()
+    assert f'href="{reverse("accounts:sign_in")}">Connect Flight to Claude</a>' in content
+    assert 'id="connect"' not in content
 
 
 def test_home_opens_the_app_when_signed_in(signed_in: Client) -> None:
@@ -59,8 +68,25 @@ def test_home_opens_the_app_when_signed_in(signed_in: Client) -> None:
     content = signed_in.get(reverse("public:home")).content.decode()
     header = content[content.index("<header") : content.index("</header>")]
     assert "Open the app" in header
-    assert f'href="{reverse("notes:list")}">Open the app</a>' in content.split("</header>")[1]
+    assert f'href="{reverse("flights:home")}">Open Flight</a>' in content.split("</header>")[1]
     assert "Sign in" not in content
+
+
+def test_home_says_what_flight_does(client: Client, with_mcp: str) -> None:
+    """The front page is Flight's own: the promise, the card, and no template leftovers."""
+    content = client.get(reverse("public:home")).content.decode()
+    assert "<h1>Where's your flight? Just ask.</h1>" in content
+    assert "img/home-card-light.png" in content
+    assert "img/home-card-dark.png" in content
+    assert "Placeholder" not in content
+    assert "note" not in content.lower().replace("hero__note", "")
+
+
+def test_features_not_built_yet_say_so(client: Client) -> None:
+    """Alerts and live sharing are shown as coming, in words."""
+    content = client.get(reverse("public:home")).content.decode()
+    assert content.count('<span class="tag">Coming soon</span>') == 2
+    assert "Alerts when it takes off and lands, by push or email." in content
 
 
 def test_home_links_to_the_connector_steps(client: Client, with_mcp: str) -> None:

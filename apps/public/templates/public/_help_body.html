@@ -1,6 +1,9 @@
 {# Help: shared by the page and apps.public.pages (the MCP tools). #}
-<p class="notice">Placeholder. Rewrite this help in your product's own words before launch.</p>
 <h1>Help</h1>
+<h2>Asking about a flight</h2>
+<p>Once {{ pwa.name }} is added to Claude (below), ask about a flight by its number, such as "Where is BA117?" or "When does EZY8461 land?". Claude answers in words and with a map card: the airport it left, the way it has flown, where it is now, the way still to go and when it's due. Long-haul flights are drawn on a globe.</p>
+<p>{{ pwa.name }} uses live data from Flightradar24, which knows a flight by the number of the airline flying it. If a codeshare number isn't found, ask with the operating airline's number: it's on your booking or the departures board. Flightradar24 has no airline schedules, so {{ pwa.name }} shows when a flight is due, not whether it's late.</p>
+<p>Looking up a flight saves nothing about you.</p>
 <h2>Signing in</h2>
 <p>There are no passwords. Enter your email address on the <a href="{% url 'accounts:sign_in' %}">sign-in page</a> and we'll send you a one-time six-digit code, with a link that signs you in with it. Use either within 15 minutes. The first time you sign in, this creates your account.</p>
 <p>If you've installed the app on an iPhone or iPad, type the code into the app rather than opening the link: the link signs in Safari, not the app.</p>
@@ -9,7 +12,7 @@
 <h2>Installing the app</h2>
 <p>On iPhone or iPad, open the app in Safari, tap Share, then Add to Home Screen. On Android or a desktop browser, use Install in the browser's menu.</p>
 <h2>Using it offline</h2>
-<p>Pages you've opened while signed in work without a connection. Anything you write offline is kept on your device and sent when you're back online. A note that couldn't be sent shows why, with Retry and Discard.</p>
+<p>Pages you've opened while signed in work without a connection. Looking up a flight needs one, as the data is live.</p>
 {% if mcp_url %}
   {# Every Titan app's steps, in the same words (DESIGN.md, "The front page"); the front page and the footer link here. #}
   <section id="use-with-ai">

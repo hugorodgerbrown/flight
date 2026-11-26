@@ -16,7 +16,6 @@ from apps.accounts.models import (
     username_for,
 )
 from apps.flights.models import Airport
-from apps.notes.models import Note
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -83,19 +82,6 @@ class ReviewerAccountFactory(factory.django.DjangoModelFactory):
         model = ReviewerAccount
 
     email = factory.Sequence(lambda n: f"reviewer{n}@example.com")
-
-
-class NoteFactory(factory.django.DjangoModelFactory):
-    """A note written now."""
-
-    class Meta:
-        """Factory metadata."""
-
-        model = Note
-
-    owner = factory.SubFactory(UserFactory)
-    text = factory.Faker("sentence")
-    written_at = factory.LazyFunction(timezone.now)
 
 
 class AirportFactory(factory.django.DjangoModelFactory):

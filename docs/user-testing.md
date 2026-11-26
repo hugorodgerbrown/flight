@@ -28,7 +28,7 @@ privacy page says what is kept about you.
 
 ## 2. Create an account
 
-1. Press **Get started** on the home page.
+1. Press **Sign in** at the top of the home page.
 2. Enter the email address that has never been used here, and press
    **Email me a link**.
 3. A page titled **Check your email** appears. Find the email: its subject
@@ -36,7 +36,7 @@ privacy page says what is kept about you.
 4. Type the six digits into **Code** and press **Sign in**.
 
 You should see: the email arrives within a minute (check spam), and after
-the code you land in the app on the **Notes** page. There was no password
+the code you land in the app on its home page, **Ask Claude where your flight is**. There was no password
 to choose: the same email both creates the account and signs in.
 
 ## 3. Sign out, and back in with the link
@@ -46,8 +46,7 @@ to choose: the same email both creates the account and signs in.
    the email instead of typing the code.
 3. On the page the link opens, press **Continue**.
 
-You should see: you're back on **Notes**, as the same person (anything you
-wrote is still there).
+You should see: you're back on the app's home page, as the same person.
 
 ## 4. Mistakes and expiry
 
@@ -74,44 +73,31 @@ You should see: the passkey listed on **Account** with the date it was added,
 and signing in with it takes no email. Try **Remove** on it afterwards: it
 disappears from the list and no longer signs you in.
 
-## 6. Write notes
-
-1. On **Notes**, type something in **New note** and press **Add note**.
-2. Add a second note.
-
-You should see: each note appear in the list at once, newest first, with
-the time you wrote it.
-
-## 7. Install the app and use it offline
+## 6. Install the app and use it offline
 
 1. Install it: on iPhone or iPad, open the site in Safari, tap **Share**,
    then **Add to Home Screen**. On Android or a computer, use **Install** in
    the browser's menu.
 2. Open it from the home screen. You should see a brief launch screen in
-   the app's colour, then **Notes**. You may need to sign in again inside
+   the app's colour, then the app's home page. You may need to sign in again inside
    the app on iPhone: type the code rather than opening the link.
 3. Turn on airplane mode (or turn off Wi-Fi), then close and reopen the app.
-4. Add a note.
-5. Turn the connection back on and wait a few seconds.
 
-You should see: with no connection the app still opens with your notes and
-a yellow bar saying you're offline. The new note shows "Waiting to send",
-and the top bar says "1 waiting to send". When you're back online the note
-loses that label and the count goes away. Check on another device (or in a
-browser) that the note is there too.
+You should see: with no connection the app still opens on its home page,
+with a yellow bar saying you're offline.
 
-## 8. Signing out on a shared device
+## 7. Signing out on a shared device
 
 1. In the installed app, go to **Account** and **Sign out**.
 2. Turn off the connection and open the app again.
 
-You should see: none of your notes. A signed-out app must not show the
-last person's notes, even offline.
+You should see: the sign-in page, not the app's home. A signed-out app
+must not show the last person's pages, even offline.
 
-## 9. Connect Claude
+## 8. Connect Claude
 
-Flight lets Claude read and add notes for you, and answer
-questions about the site.
+Flight lets Claude tell you where a flight is, and answer questions about
+the site.
 
 1. In Claude (claude.ai or the Claude app), open **Settings**, then
    **Connectors**, and add a custom connector with the URL
@@ -124,29 +110,29 @@ You should see: Claude says the connector is connected. If the page says
 "This connection can't go ahead" or you get a "forbidden" error, your
 account isn't allowed to connect yet: ask whoever runs the site.
 
-## 10. Talk to Flight through Claude
+## 9. Talk to Flight through Claude
 
 Start a new chat in Claude with the connector turned on and try these.
 Claude may ask permission before it uses the connector each time: allow it.
 
 | Ask Claude | You should see |
 | --- | --- |
-| "What are my latest notes in Flight?" | The notes you wrote in scenarios 6 and 7, newest first. |
-| "Add a note to Flight: Pack the head torch." | Claude says it's added. Refresh **Notes** in the app: it's there. |
+| "Where is BA117?" (or any flight in the air now) | A sentence saying where it is, and a map card: its route, where it is now and when it's due. |
+| "When does EZY8461 land?" | When it's due, or that it has landed. |
 | "What does Flight keep about me?" | A summary of the privacy page, in Claude's words. |
 | "What are Flight's terms of service?" | A summary of the terms page. |
 | "How do I sign in to Flight on my iPhone?" | Advice from the help page: type the code rather than opening the link. |
-| "Add an empty note to Flight." | Claude says it couldn't, because a note needs some text. Nothing new appears in the app. |
+| "Where is XX0000?" | Claude says Flightradar24 has no such flight, and suggests the operating airline's number. |
 
-## 11. Disconnect Claude
+## 10. Disconnect Claude
 
 1. Visit `https://example.com/oauth/connected/` while signed in.
 2. Press **Disconnect** next to Claude.
-3. In Claude, ask "What are my latest notes in Flight?" again.
+3. In Claude, ask "Where is BA117?" again.
 
 You should see: Claude listed under **Connected apps** before you
-disconnect, and the list empty afterwards. Claude can no longer read your
-notes; it asks you to connect again.
+disconnect, and the list empty afterwards. Claude can no longer use
+Flight; it asks you to connect again.
 
 ## When you're done
 

@@ -13,6 +13,7 @@ from django.urls import reverse
 
 from apps.core import errors
 from apps.core.analytics import SCRIPT
+from tests import outbox_endpoint
 from tests.factories import UserFactory
 
 pytestmark = [pytest.mark.django_db, pytest.mark.urls("tests.core.error_urls")]
@@ -271,7 +272,7 @@ def test_a_csrf_failure_is_the_expired_form_page(user: Any) -> None:
     """A form posted with a stale token says how to recover."""
     client = Client(enforce_csrf_checks=True)
     client.force_login(user)
-    response = client.post(reverse("notes:create"), {"text": "Hello"})
+    response = client.post(outbox_endpoint.URL, {"text": "Hello"})
     assert response.status_code == 403
     assert "This form has expired" in page(response)
     assert response["X-CSRF-Failure"] == "1"
@@ -281,9 +282,7 @@ def test_a_csrf_failure_is_marked_for_the_outbox_in_json(user: Any) -> None:
     """The outbox keeps a write refused with X-CSRF-Failure, whatever the shape."""
     client = Client(enforce_csrf_checks=True)
     client.force_login(user)
-    response = client.post(
-        reverse("notes:create"), "{}", content_type="application/json", headers=JSON
-    )
+    response = client.post(outbox_endpoint.URL, "{}", content_type="application/json", headers=JSON)
     assert response.status_code == 403
     assert response["X-CSRF-Failure"] == "1"
     assert json.loads(response.content) == {"error": "csrf_failed", "status": 403}

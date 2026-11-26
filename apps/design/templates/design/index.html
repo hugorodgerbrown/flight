@@ -141,19 +141,6 @@
         </div>
       </li>
     </ul>
-    <ul class="note-list">
-      <li class="note"><p class="note__text">A note</p><p class="note__meta">Saved</p></li>
-      <li class="note note--pending">
-        <p class="note__text">A note waiting to send</p>
-        <p class="note__meta">Waiting to send</p>
-        <div class="note__actions">
-          <button class="button button--quiet" type="button">Retry</button>
-          <button class="button button--quiet" type="button">Discard</button>
-        </div>
-      </li>
-      <li class="note note--failed"><p class="note__text">A note the server refused</p><p class="note__meta">Couldn't send</p></li>
-      <li class="note note--empty">No notes yet.</li>
-    </ul>
   </section>
 
   <section class="card stack" aria-labelledby="ds-pages">
@@ -168,6 +155,25 @@
     </div>
     <p class="eyebrow">An address to copy, with MCP</p>
     <p class="copy-field"><code class="copy-field__value">https://example.com/mcp</code><button class="button button--secondary" type="button">Copy</button></p>
+    <p class="eyebrow">Flight's front page: the promise kept</p>
+    <figure class="showcase">
+      <p class="showcase__ask">Where is BA117?</p>
+      <div class="showcase__card"><img src="{% static 'img/home-card-light.png' %}" width="440" height="435" alt="Flight's map card for BA117"></div>
+      <figcaption class="showcase__caption">A caption saying how to read it.</figcaption>
+    </figure>
+    <p class="eyebrow">Jobs, one not built yet</p>
+    <ul class="job-list">
+      <li class="job"><h2>An outcome</h2><p>One sentence about it.</p><p class="job__where">Where it happens</p></li>
+      <li class="job job--soon"><h2>An outcome on its way <span class="tag">Coming soon</span></h2><p>Said in words, not only in grey.</p><p class="job__where">Where it will happen</p></li>
+    </ul>
+    <p class="eyebrow">Things to ask</p>
+    <ul class="ask-list"><li class="ask">Where is BA117?</li><li class="ask">When does EZY8461 land?</li></ul>
+    <p class="eyebrow">Facts</p>
+    <ul class="facts">
+      <li><span class="fact__number">0</span><span class="fact__label">passwords</span></li>
+      <li><span class="fact__number">1</span><span class="fact__label">flight on the map</span></li>
+      <li><span class="fact__number">0</span><span class="fact__label">ads</span></li>
+    </ul>
     <div class="prose">
       <h2>Prose</h2>
       <p>Terms, privacy and help are prose: headings and paragraphs with room between them.</p>

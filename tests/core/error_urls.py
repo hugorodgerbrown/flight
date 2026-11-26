@@ -5,6 +5,7 @@ from django.http import HttpRequest, HttpResponse
 from django.urls import path
 
 from config.urls import handler400, handler403, handler404, handler500, urlpatterns
+from tests.outbox_endpoint import write
 
 __all__ = ["handler400", "handler403", "handler404", "handler500", "urlpatterns"]
 
@@ -30,5 +31,6 @@ urlpatterns = [
     path("raise/500/", broken),
     path("raise/500/<str:token>/", broken),
     path("mcp/raise/500/", broken),
+    path("app/test-outbox/", write),
     *urlpatterns,
 ]
