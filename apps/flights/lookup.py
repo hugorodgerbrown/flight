@@ -47,6 +47,9 @@ from apps.flights.models import Airport
 logger = logging.getLogger(__name__)
 
 CACHE_SECONDS = 60
+# The most points of a track the card is sent: plenty for a smooth line on a
+# 640-wide map, and a small answer.
+PATH_POINTS = 200
 # Someone is waiting on a lookup, so calls aren't paced and a rate-limited
 # call waits only briefly before its one retry.
 RETRY_SECONDS = 2
@@ -144,6 +147,11 @@ def look_up(api: Fr24Api, number: str, now: datetime) -> dict[str, Any] | None:
         "altitude_ft": None,
         "minutes_to_go": None,
     }
+    # The path flown, from the leg's track (RAS-142): one call, for a flight
+    # in the air or landed.
+    fr24_id = str(either.get("fr24_id") or "")
+    track = api.track(fr24_id) if fr24_id else []
+    flight["path"] = thin(track)
     if live is not None:
         eta = when(live.get("eta"))
         estimated = str(live.get("source") or "").upper() == "ESTIMATED"
@@ -163,22 +171,30 @@ def look_up(api: Fr24Api, number: str, now: datetime) -> dict[str, Any] | None:
     landed = when(summary.get("datetime_landed"))
     if landed:
         return flight | {"status": LANDED, "arrives": iso(landed), "progress": 1.0}
-    if not summary.get("flight_ended"):
+    if not summary.get("flight_ended") and track:
         # Still being followed, but missing from the live feed: its track
         # has the latest point Flightradar24 holds.
-        point = api.last_point(str(summary.get("fr24_id") or ""))
-        if point is not None:
-            return (
-                flight
-                | {
-                    "status": AIRBORNE,
-                    "position_kind": LAST_SEEN,
-                    "seen": iso(when(point.get("timestamp"))) or flight["seen"],
-                    "arrives": None,
-                }
-                | located(origin, destination, point)
-            )
-    return flight | {"status": LOST, "arrives": None, "progress": 0.0}
+        point = track[-1]
+        return (
+            flight
+            | {
+                "status": AIRBORNE,
+                "position_kind": LAST_SEEN,
+                "seen": iso(when(point.get("timestamp"))) or flight["seen"],
+                "arrives": None,
+            }
+            | located(origin, destination, point)
+        )
+    return flight | {"status": LOST, "arrives": None, "progress": 0.0, "path": []}
+
+
+def thin(track: list[dict[str, Any]]) -> list[list[float]]:
+    """Return the track as [lat, lon] pairs, at most PATH_POINTS, always keeping the last."""
+    step = max(1, math.ceil(len(track) / PATH_POINTS))
+    kept = track[::step]
+    if track and kept[-1] is not track[-1]:
+        kept.append(track[-1])
+    return [[round(float(p["lat"]), 4), round(float(p["lon"]), 4)] for p in kept]
 
 
 def located(origin: Airport, destination: Airport, row: dict[str, Any]) -> dict[str, Any]:

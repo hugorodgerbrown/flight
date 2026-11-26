@@ -9,7 +9,7 @@ from freezegun import freeze_time
 from apps.flights import fr24, lookup
 from apps.flights.models import Airport
 from tests import fr24_fake
-from tests.fr24_fake import LIVE_BA117, SUMMARY_BA117, SUMMARY_EI154
+from tests.fr24_fake import LIVE_BA117, SUMMARY_BA117, SUMMARY_EI154, TRACK_BA117
 
 NOW = datetime(2026, 11, 26, 9, 32, tzinfo=UTC)
 
@@ -38,10 +38,10 @@ def test_a_live_flight_joins_its_own_leg(api: dict[str, Any]) -> None:
 
 @freeze_time(NOW)
 def test_bundled_airports_cost_no_calls(api: dict[str, Any]) -> None:
-    """LHR and JFK are in the bundled list, so a lookup is two calls and no more."""
+    """LHR and JFK are in the bundled list: a lookup is live, summary and track, no more."""
     api["live"] = [LIVE_BA117]
     lookup.where("BA117")
-    assert api["calls"] == [fr24.LIVE, fr24.SUMMARY]
+    assert api["calls"] == [fr24.LIVE, fr24.SUMMARY, fr24.TRACKS]
 
 
 @freeze_time(NOW)
@@ -58,7 +58,7 @@ def test_an_airport_the_list_lacks_is_fetched_once_and_kept(api: dict[str, Any])
     api["calls"].clear()
     lookup.cache.clear()
     lookup.where("BA117")
-    assert api["calls"] == [fr24.LIVE, fr24.SUMMARY]
+    assert api["calls"] == [fr24.LIVE, fr24.SUMMARY, fr24.TRACKS]
 
 
 @pytest.mark.parametrize("status", [403, 404])
@@ -146,3 +146,24 @@ def test_progress_is_flown_over_flown_plus_to_go() -> None:
     assert lookup.progress(heathrow, kennedy, {"lat": 51.47, "lon": -0.45}) == 0
     assert lookup.progress(heathrow, kennedy, {"lat": 40.64, "lon": -73.78}) == 1
     assert lookup.progress(heathrow, heathrow, {"lat": 51.47, "lon": -0.45}) == 0
+
+
+@freeze_time(NOW)
+def test_the_path_flown_comes_from_the_track(api: dict[str, Any]) -> None:
+    """The leg's track is sent as [lat, lon] pairs for the card to draw (RAS-142)."""
+    api["live"] = [LIVE_BA117]
+    api["tracks"] = {"42bc74bd": list(reversed(TRACK_BA117))}
+    flight = lookup.where("BA117")
+    assert flight is not None
+    assert flight["path"] == [[54.8, -21.1], [54.9, -21.6]]
+    assert api["params"][-1] == {"flight_id": "42bc74bd"}
+
+
+def test_a_long_track_is_thinned_but_keeps_its_last_point() -> None:
+    """At most PATH_POINTS are sent, and the newest is always one of them."""
+    track = [{"lat": i / 1000, "lon": -i / 1000} for i in range(1001)]
+    path = lookup.thin(track)
+    assert len(path) <= lookup.PATH_POINTS + 1
+    assert path[0] == [0.0, 0.0]
+    assert path[-1] == [1.0, -1.0]
+    assert lookup.thin([]) == []

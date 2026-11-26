@@ -3,11 +3,11 @@
  *
  * The map is the land from flight_land.js (Web Mercator in degrees: x =
  * longitude + 180, y = 0 at 85 degrees north), cropped to the route. The
- * route is the great circle between the airports, dashed. With a position,
- * the line goes through the plane (RAS-141): solid from the origin to the
- * plane, dashed from the plane to the destination, since a plane on an
- * ocean track can be hundreds of miles off the shortest route. Without
- * one, the flown fraction is solid. The plane is one accent dot.
+ * path flown is solid: the real track from Flightradar24 when the result
+ * has one (RAS-142), else a great circle, and it always runs through the
+ * plane (RAS-141), since a plane on an ocean track can be hundreds of miles
+ * off the shortest route. The way ahead is dashed, a great circle from the
+ * plane to the destination. The plane is one accent dot.
  * Everything from the result goes in as text, never as markup.
  */
 (function () {
@@ -93,14 +93,22 @@
     return [airport[0] - (dx / length) * LABEL_GAP, airport[1] - (dy / length) * LABEL_GAP];
   }
 
-  // The lines to draw: [flown, ahead], each a list of points. Through the
-  // plane when there's a position, along the airports' great circle when not.
+  // The lines to draw: [flown, ahead], each a list of {lat, lon}. The flown
+  // line is the real path from Flightradar24's track when there is one
+  // (RAS-142), else a great circle; either way it runs through the plane
+  // (RAS-141), and the line ahead is the great circle from the plane on.
   function legs(flight) {
     const { origin, destination } = flight;
+    const path = (Array.isArray(flight.path) ? flight.path : [])
+      .map((p) => ({ lat: Number(p[0]), lon: Number(p[1]) }))
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+    const tracked = path.length >= 2;
     if (flight.position && flight.status === 'airborne') {
       const plane = { lat: Number(flight.position.lat), lon: Number(flight.position.lon) };
-      return [greatCircle(origin, plane, 1, STEPS), greatCircle(plane, destination, 1, STEPS)];
+      const flown = tracked ? [origin, ...path, plane] : greatCircle(origin, plane, 1, STEPS);
+      return [flown, greatCircle(plane, destination, 1, STEPS)];
     }
+    if (flight.status === 'landed' && tracked) return [[origin, ...path, destination], []];
     const progress = Math.max(0, Math.min(1, Number(flight.progress) || 0));
     return [progress > 0 ? greatCircle(origin, destination, progress, STEPS) : [], greatCircle(origin, destination, 1, STEPS)];
   }
@@ -120,18 +128,22 @@
       d: self.FlightLand || '',
       transform: `translate(${(-view.x * view.scale).toFixed(2)} ${(-view.y * view.scale).toFixed(2)}) scale(${view.scale.toFixed(4)})`,
     });
-    const parts = [land, el('path', { class: 'ahead', d: line(ahead, view) })];
+    const parts = [land];
+    if (ahead.length) parts.push(el('path', { class: 'ahead', d: line(ahead, view) }));
     if (flown.length) parts.push(el('path', { class: 'flown', d: line(flown, view) }));
-    // Each code sits away from the line leaving its airport.
+    // Each code sits away from the line leaving its airport, judged from the
+    // first point far enough along it (a track starts on the runway).
     const first = flown.length ? flown : ahead;
+    const last = ahead.length ? ahead : flown;
     const ends = [
-      [origin, first[1]],
-      [destination, ahead[ahead.length - 2]],
+      [origin, first],
+      [destination, [...last].reverse()],
     ];
-    for (const [airport, next] of ends) {
+    for (const [airport, leaving] of ends) {
       const [x, y] = at(airport);
       parts.push(el('circle', { class: 'airport', cx: x.toFixed(1), cy: y.toFixed(1), r: 4 }));
-      const [lx, ly] = labelAt([x, y], at(next));
+      const next = leaving.map(at).find(([px, py]) => Math.hypot(px - x, py - y) > LABEL_GAP) || at(leaving[1] || airport);
+      const [lx, ly] = labelAt([x, y], next);
       const code = el('text', { class: 'code', x: lx.toFixed(1), y: ly.toFixed(1) });
       code.textContent = airport.code;
       parts.push(code);

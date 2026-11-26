@@ -36,7 +36,7 @@ a month.
   doesn't, and waits only 2 seconds before retrying a 429.
 - **A lookup is cached for 60 seconds**, so a client asking twice doesn't
   spend twice.
-- **The card's URI carries a version** (`ui://flight/map-v2`; `map-v4` since RAS-141). Claude caches
+- **The card's URI carries a version** (`ui://flight/map-v2`; `map-v5` since RAS-142). Claude caches
   a view by URI, so a changed card needs a new URI to reach people without
   reconnecting the connector. Bump it whenever the card changes.
 

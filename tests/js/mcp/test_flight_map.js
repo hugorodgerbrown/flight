@@ -91,6 +91,37 @@ describe('the route through the plane', () => {
     expect(close(ahead[ahead.length - 1], flight.destination)).toBe(true);
   });
 
+  it('draws the real path flown from the track, then on from the plane', () => {
+    const path = [
+      [51.48, -0.5],
+      [53.9, -8.7],
+      [55.8, -14.2],
+    ];
+    const flight = { ...FLIGHT, path, position: { lat: 58.0, lon: -25.0 } };
+    const [flown, ahead] = self.FlightMap.legs(flight);
+    expect(flown.map((p) => [p.lat, p.lon])).toEqual([[38.7742, -9.1342], ...path, [58.0, -25.0]]);
+    expect(ahead[0]).toEqual({ lat: 58.0, lon: -25.0 });
+  });
+
+  it('draws a landed flight\'s whole path and nothing ahead', () => {
+    const path = [
+      [39, -9],
+      [45, -5],
+    ];
+    const [flown, ahead] = self.FlightMap.legs({ ...FLIGHT, status: 'landed', position: null, path });
+    expect(flown.map((p) => [p.lat, p.lon])).toEqual([[38.7742, -9.1342], ...path, [51.47, -0.4543]]);
+    expect(ahead).toEqual([]);
+    onResult({ structuredContent: { ...FLIGHT, status: 'landed', position: null, path } });
+    const svg = document.querySelector('[data-map]');
+    expect(svg.querySelector('.ahead')).toBeNull();
+    expect(svg.querySelectorAll('.code').length).toBe(2);
+  });
+
+  it('ignores a path that is too short or not numbers', () => {
+    const [flown] = self.FlightMap.legs({ ...FLIGHT, path: [[1, 'x'], [2, 2]] });
+    expect(flown.length).toBe(65);
+  });
+
   it('draws the flown fraction of the airports\' great circle without a position', () => {
     const [flown, ahead] = self.FlightMap.legs({ ...FLIGHT, status: 'lost', position: null, progress: 0 });
     expect(flown).toEqual([]);

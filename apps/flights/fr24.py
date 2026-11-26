@@ -138,20 +138,21 @@ class Fr24Api:
             raise
         return answer if isinstance(answer, dict) and answer.get("lat") is not None else None
 
-    def last_point(self, fr24_id: str) -> dict[str, Any] | None:
-        """Return the latest point of a flight's track, or None if there isn't one.
+    def track(self, fr24_id: str) -> list[dict[str, Any]]:
+        """Return a flight's track points, oldest first, or [] if there's no track.
 
-        The live feed can leave out a flight that Flightradar24 is still
-        following (RAS-140), while its track still has the latest point.
+        The card draws the path flown from it (RAS-142), and the live feed can
+        leave out a flight Flightradar24 is still following, while its track
+        still has the latest point (RAS-140).
         """
         if not fr24_id.isalnum():
-            return None
+            return []
         try:
             answer = self.answer(TRACKS, {"flight_id": fr24_id})
         except Fr24Error as exc:
             # 404: no track. 403: the plan doesn't include tracks.
             if exc.status in (403, 404):
-                return None
+                return []
             raise
         legs = answer.get("data") if isinstance(answer, dict) else answer
         points = [
@@ -161,7 +162,7 @@ class Fr24Api:
             for p in (leg.get("tracks") or [])
             if isinstance(p, dict) and p.get("lat") is not None and p.get("lon") is not None
         ]
-        return max(points, key=lambda p: str(p.get("timestamp") or ""), default=None)
+        return sorted(points, key=lambda p: str(p.get("timestamp") or ""))
 
     def answer(self, path: str, params: dict[str, str]) -> Any:
         """GET ``path`` and return its JSON, retrying a 429 once."""

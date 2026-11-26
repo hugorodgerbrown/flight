@@ -199,7 +199,7 @@ TOOLS: dict[str, Tool] = {
             },
             func=where_is,
             markdown=True,
-            ui="ui://flight/map-v4",
+            ui="ui://flight/map-v5",
         ),
         Tool(
             name="privacy_policy",
