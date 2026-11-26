@@ -1,13 +1,19 @@
 /*
  * apps/mcp/ui/flight_map.js — draw where_is's result as a map card.
  *
- * The map is the land from flight_land.js (Web Mercator in degrees: x =
- * longitude + 180, y = 0 at 85 degrees north), cropped to the route. The
+ * A short hop is drawn on the land from flight_land.js (Web Mercator in
+ * degrees: x = longitude + 180, y = 0 at 85 degrees north), cropped to the
+ * route. A long-haul route (over LONG_HAUL_KM) is drawn on a globe instead
+ * (RAS-143): an orthographic projection from d3_geo.js, centred on the
+ * route and zoomed to it, with lines of latitude and longitude, so the
+ * earth's curvature shows. The
  * path flown is solid: the real track from Flightradar24 when the result
  * has one (RAS-142), else a great circle, and it always runs through the
  * plane (RAS-141), since a plane on an ocean track can be hundreds of miles
  * off the shortest route. The way ahead is dashed, a great circle from the
- * plane to the destination. The plane is one accent dot.
+ * plane to the destination. The way ahead curves on from the plane's
+ * heading into the destination, so it reads as the flown line continued.
+ * The plane is one accent dot.
  * Everything from the result goes in as text, never as markup.
  */
 (function () {
@@ -21,6 +27,14 @@
   const PAD = 0.25; // of the route's size, on every side
   const STEPS = 64;
   const LABEL_GAP = 18; // from an airport's centre to its code's centre
+  const LONG_HAUL_KM = 3000;
+  const EARTH_KM = 6371;
+  // How far back along the track the plane's heading is judged from (radians, about 20 km).
+  const HEADING_FROM = 20 / EARTH_KM;
+  // How far the way ahead keeps the plane's heading before turning for the destination.
+  const LEAD = 0.4;
+  const PAD_X = 0.12; // of the card's width, either side of the route, on the globe
+  const PAD_Y = 0.16; // of its height, above and below
   const rad = (d) => (d * Math.PI) / 180;
   const deg = (r) => (r * 180) / Math.PI;
   const mercator = (lat) => deg(Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2)));
@@ -31,27 +45,71 @@
     return [lon + 180, TOP - mercator(clamped)];
   }
 
-  // Points along the great circle from a to b ({lat, lon}), fraction 0 to `upTo`.
-  function greatCircle(a, b, upTo, steps) {
+  // The angle in radians between two points ({lat, lon}) on the globe.
+  function arc(a, b) {
     const [lat1, lon1, lat2, lon2] = [a.lat, a.lon, b.lat, b.lon].map(rad);
-    const angle =
+    return (
       2 *
       Math.asin(
-        Math.sqrt(Math.sin((lat2 - lat1) / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2)
-      );
+        Math.min(1, Math.sqrt(Math.sin((lat2 - lat1) / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2))
+      )
+    );
+  }
+
+  // The point fraction f of the way along the great circle from a to b.
+  function between(a, b, f) {
+    const angle = arc(a, b);
+    if (angle === 0) return { lat: a.lat, lon: a.lon };
+    const [lat1, lon1, lat2, lon2] = [a.lat, a.lon, b.lat, b.lon].map(rad);
+    const p = Math.sin((1 - f) * angle) / Math.sin(angle);
+    const q = Math.sin(f * angle) / Math.sin(angle);
+    const x = p * Math.cos(lat1) * Math.cos(lon1) + q * Math.cos(lat2) * Math.cos(lon2);
+    const y = p * Math.cos(lat1) * Math.sin(lon1) + q * Math.cos(lat2) * Math.sin(lon2);
+    const z = p * Math.sin(lat1) + q * Math.sin(lat2);
+    return { lat: deg(Math.atan2(z, Math.hypot(x, y))), lon: deg(Math.atan2(y, x)) };
+  }
+
+  // Points along the great circle from a to b ({lat, lon}), fraction 0 to `upTo`.
+  function greatCircle(a, b, upTo, steps) {
     const points = [];
-    for (let i = 0; i <= steps; i++) {
-      const f = (upTo * i) / steps;
-      if (angle === 0) {
-        points.push({ lat: a.lat, lon: a.lon });
-        continue;
-      }
-      const p = Math.sin((1 - f) * angle) / Math.sin(angle);
-      const q = Math.sin(f * angle) / Math.sin(angle);
-      const x = p * Math.cos(lat1) * Math.cos(lon1) + q * Math.cos(lat2) * Math.cos(lon2);
-      const y = p * Math.cos(lat1) * Math.sin(lon1) + q * Math.cos(lat2) * Math.sin(lon2);
-      const z = p * Math.sin(lat1) + q * Math.sin(lat2);
-      points.push({ lat: deg(Math.atan2(z, Math.hypot(x, y))), lon: deg(Math.atan2(y, x)) });
+    for (let i = 0; i <= steps; i++) points.push(between(a, b, (upTo * i) / steps));
+    return points;
+  }
+
+  // The initial bearing from a to b, in radians clockwise from north.
+  function bearing(a, b) {
+    const [lat1, lon1, lat2, lon2] = [a.lat, a.lon, b.lat, b.lon].map(rad);
+    const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+    return Math.atan2(y, x);
+  }
+
+  // The point `angle` radians from p along `heading`.
+  function travel(p, heading, angle) {
+    const [lat1, lon1] = [rad(p.lat), rad(p.lon)];
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angle) + Math.cos(lat1) * Math.sin(angle) * Math.cos(heading));
+    const lon2 =
+      lon1 + Math.atan2(Math.sin(heading) * Math.sin(angle) * Math.cos(lat1), Math.cos(angle) - Math.sin(lat1) * Math.sin(lat2));
+    return { lat: deg(lat2), lon: ((deg(lon2) + 540) % 360) - 180 };
+  }
+
+  // The way ahead from the plane: a curve that leaves along the heading it
+  // came on (from `behind` to the plane) and bends into the destination, a
+  // quadratic Bézier on the sphere. Without a heading, or one pointing away
+  // from the destination, it is the great circle.
+  function curveAhead(plane, destination, behind) {
+    const togo = arc(plane, destination);
+    if (!behind || togo === 0) return greatCircle(plane, destination, 1, STEPS);
+    // The heading on arrival at the plane: the bearing back to `behind`, reversed.
+    const heading = bearing(plane, behind) + Math.PI;
+    let turn = Math.abs(heading - bearing(plane, destination));
+    turn = Math.min(turn, 2 * Math.PI - turn);
+    if (turn > Math.PI / 2) return greatCircle(plane, destination, 1, STEPS);
+    const control = travel(plane, heading, LEAD * togo);
+    const points = [];
+    for (let i = 0; i <= STEPS; i++) {
+      const t = i / STEPS;
+      points.push(between(between(plane, control, t), between(control, destination, t), t));
     }
     return points;
   }
@@ -96,7 +154,7 @@
   // The lines to draw: [flown, ahead], each a list of {lat, lon}. The flown
   // line is the real path from Flightradar24's track when there is one
   // (RAS-142), else a great circle; either way it runs through the plane
-  // (RAS-141), and the line ahead is the great circle from the plane on.
+  // (RAS-141). The way ahead curves on from the plane's heading (RAS-143).
   function legs(flight) {
     const { origin, destination } = flight;
     const path = (Array.isArray(flight.path) ? flight.path : [])
@@ -106,31 +164,103 @@
     if (flight.position && flight.status === 'airborne') {
       const plane = { lat: Number(flight.position.lat), lon: Number(flight.position.lon) };
       const flown = tracked ? [origin, ...path, plane] : greatCircle(origin, plane, 1, STEPS);
-      return [flown, greatCircle(plane, destination, 1, STEPS)];
+      const behind = [...flown].reverse().find((p) => arc(p, plane) > HEADING_FROM);
+      return [flown, curveAhead(plane, destination, behind)];
     }
     if (flight.status === 'landed' && tracked) return [[origin, ...path, destination], []];
     const progress = Math.max(0, Math.min(1, Number(flight.progress) || 0));
     return [progress > 0 ? greatCircle(origin, destination, progress, STEPS) : [], greatCircle(origin, destination, 1, STEPS)];
   }
 
+  // A long-haul route goes on the globe, when the globe's library is there.
+  function onGlobe(flight) {
+    const d3 = self.d3;
+    return Boolean(d3 && d3.geoOrthographic) && arc(flight.origin, flight.destination) * EARTH_KM > LONG_HAUL_KM;
+  }
+
+  // The land from flight_land.js as rings of [lon, lat], each wound as the
+  // smaller of the two areas it bounds, for d3; holes are rings too, and the
+  // path's even-odd fill leaves them as sea. Worked out once.
+  let globeLand = null;
+  function landRings() {
+    if (globeLand) return globeLand;
+    const d3 = self.d3;
+    const rings = String(self.FlightLand || '')
+      .split('M')
+      .filter(Boolean)
+      .map((ring) =>
+        ring
+          .replace(/Z/g, '')
+          .split('L')
+          .map((pair) => pair.trim().split(/\s+/).map(Number))
+          .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y))
+          .map(([x, y]) => [x - 180, deg(2 * Math.atan(Math.exp(rad(TOP - y)))) - 90])
+      )
+      .filter((ring) => ring.length >= 4)
+      .map((ring) => {
+        const closed = [...ring, ring[0]];
+        return d3.geoArea({ type: 'Polygon', coordinates: [closed] }) > 2 * Math.PI ? [closed.reverse()] : [closed];
+      });
+    globeLand = { type: 'MultiPolygon', coordinates: rings };
+    return globeLand;
+  }
+
+  // How to draw on the globe: where a point lands, a line's path, and the
+  // sphere, graticule and land beneath the route.
+  function globeView(flight, route) {
+    const d3 = self.d3;
+    const { origin, destination } = flight;
+    const middle = between(origin, destination, 0.5);
+    const projection = d3.geoOrthographic().rotate([-middle.lon, -middle.lat]).precision(0.3);
+    projection.fitExtent(
+      [
+        [WIDTH * PAD_X, HEIGHT * PAD_Y],
+        [WIDTH * (1 - PAD_X), HEIGHT * (1 - PAD_Y)],
+      ],
+      { type: 'MultiPoint', coordinates: route.map((p) => [p.lon, p.lat]) }
+    );
+    const draw = d3.geoPath(projection);
+    return {
+      at: (p) => projection([p.lon, p.lat]),
+      line: (points) => draw({ type: 'LineString', coordinates: points.map((p) => [p.lon, p.lat]) }) || '',
+      base: [
+        el('path', { class: 'sphere', d: draw({ type: 'Sphere' }) || '' }),
+        el('path', { class: 'graticule', d: draw(d3.geoGraticule10()) || '' }),
+        el('path', { class: 'land globe-land', d: draw(landRings()) || '' }),
+      ],
+    };
+  }
+
+  // How to draw on the flat map, cropped to the route.
+  function flatView(route) {
+    const view = frame(route.map((p) => project(p.lon, p.lat)));
+    return {
+      at: (p) => {
+        const [x, y] = project(p.lon, p.lat);
+        return [(x - view.x) * view.scale, (y - view.y) * view.scale];
+      },
+      line: (points) => line(points, view),
+      base: [
+        el('path', {
+          class: 'land',
+          d: self.FlightLand || '',
+          transform: `translate(${(-view.x * view.scale).toFixed(2)} ${(-view.y * view.scale).toFixed(2)}) scale(${view.scale.toFixed(4)})`,
+        }),
+      ],
+    };
+  }
+
   function draw(svg, flight) {
     const { origin, destination } = flight;
     const [flown, ahead] = legs(flight);
     const route = [...flown, ...ahead];
-    const view = frame(route.map((p) => project(p.lon, p.lat)));
-    const at = (p) => {
-      const [x, y] = project(p.lon, p.lat);
-      return [(x - view.x) * view.scale, (y - view.y) * view.scale];
-    };
-
-    const land = el('path', {
-      class: 'land',
-      d: self.FlightLand || '',
-      transform: `translate(${(-view.x * view.scale).toFixed(2)} ${(-view.y * view.scale).toFixed(2)}) scale(${view.scale.toFixed(4)})`,
-    });
-    const parts = [land];
-    if (ahead.length) parts.push(el('path', { class: 'ahead', d: line(ahead, view) }));
-    if (flown.length) parts.push(el('path', { class: 'flown', d: line(flown, view) }));
+    const globe = onGlobe(flight);
+    const view = globe ? globeView(flight, route) : flatView(route);
+    const at = view.at;
+    svg.classList.toggle('globe', globe);
+    const parts = [...view.base];
+    if (ahead.length) parts.push(el('path', { class: 'ahead', d: view.line(ahead) }));
+    if (flown.length) parts.push(el('path', { class: 'flown', d: view.line(flown) }));
     // Each code sits away from the line leaving its airport, judged from the
     // first point far enough along it (a track starts on the runway).
     const first = flown.length ? flown : ahead;
@@ -215,7 +345,7 @@
     draw(q('map'), flight);
   }
 
-  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence, pillFor, legs };
+  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence, pillFor, legs, arc, bearing, curveAhead, onGlobe };
 
   if (!self.McpApp) return;
   const status = document.querySelector('[data-status]');
