@@ -39,6 +39,9 @@ class Tool:
     input_schema: dict[str, Any]
     func: Callable[[Any, dict[str, Any]], dict[str, Any]]
     read_only: bool = True
+    # True for a tool that deletes something (unfollow); MCP's default is true,
+    # so every other tool says false.
+    destructive: bool = False
     # True for a tool that reaches outside this app (where_is asks
     # Flightradar24); false for one that answers from the app alone.
     open_world: bool = False
@@ -59,8 +62,7 @@ class Tool:
             "annotations": {
                 "title": self.title,
                 "readOnlyHint": self.read_only,
-                # No tool deletes or overwrites anything (MCP's default is true).
-                "destructiveHint": False,
+                "destructiveHint": self.destructive,
                 "openWorldHint": self.open_world,
             },
         }
@@ -307,6 +309,7 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             name="follow",
+            title="Follow a flight",
             description=(
                 "Follow a flight for the signed-in user: Flight sends them an alert by push "
                 "notification and/or email when it next takes off and when it lands (or only "
@@ -324,6 +327,7 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             name="unfollow",
+            title="Stop following a flight",
             description="Stop following a flight: no more take-off or landing alerts for it.",
             input_schema={
                 "type": "object",
@@ -332,10 +336,12 @@ TOOLS: dict[str, Tool] = {
             },
             func=unfollow,
             read_only=False,
+            destructive=True,
             markdown=True,
         ),
         Tool(
             name="following",
+            title="Flights followed",
             description=(
                 "The flights the signed-in user follows for alerts, each waiting to take off, "
                 "in the air (with take-off and arrival times) or landed."
