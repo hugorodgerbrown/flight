@@ -19,6 +19,12 @@
   --warn-bg: #fff4d6;
   --warn-text: #6b4e00;
   --error: #b42318;
+  /* A flight in the air, and the push banner: a tint of the brand, with brand-ink text that
+     keeps 4.5:1 on it in both schemes. Landed: done, in green. */
+  --brand-soft: #e8eefc;
+  --brand-ink: #1d4ed8;
+  --ok-bg: #e3f5ea;
+  --ok-text: #0f6b36;
 
   /* Type: one family, seven sizes. */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -59,6 +65,10 @@
     --warn-bg: #3a2f10;
     --warn-text: #f5d77a;
     --error: #f97066;
+    --brand-soft: #18264a;
+    --brand-ink: #9db8ff;
+    --ok-bg: #12321f;
+    --ok-text: #7ee2a8;
   }
 }
 
@@ -293,6 +303,69 @@ input.code-box:focus { border-color: var(--brand); outline: 2px solid var(--bran
 .item__title { margin: 0; font-weight: 600; }
 .item .meta { margin: var(--space-2xs) 0 0; }
 
+
+/* Following flights (apps/alerts): the follow form, the list and its rows. */
+
+.follow-form { display: flex; gap: var(--space-sm); }
+.follow-form input { flex: 1; min-width: 0; text-transform: uppercase; }
+.follow-form input::placeholder { text-transform: none; }
+.flight-list { list-style: none; margin: 0; padding: 0; }
+.flight { padding: var(--space-md) 0; }
+.flight + .flight { border-top: 1px solid var(--border); }
+.flight__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.flight__number { font-size: var(--type-lg); font-weight: 700; }
+.flight__route { margin: 0; color: var(--text-2); font-size: var(--type-sm); }
+.flight .meta { margin: var(--space-xs) 0 0; }
+.flight__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-top: var(--space-sm); }
+.flight__actions form { margin: 0; }
+/* A flight's state, in words and colour. */
+.status {
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-control);
+  font-size: var(--type-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status--waiting { background: var(--bg); color: var(--text-2); }
+.status--airborne { background: var(--brand-soft); color: var(--brand-ink); }
+.status--landed { background: var(--ok-bg); color: var(--ok-text); }
+.status--ended { background: var(--warn-bg); color: var(--warn-text); }
+/* How much of the flight time has gone, from the clock (no extra lookups). */
+.progress {
+  display: block;
+  width: 100%;
+  height: var(--space-xs);
+  margin-top: var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--border);
+  color: var(--brand);
+  appearance: none;
+  overflow: hidden;
+}
+.progress::-webkit-progress-bar { background: var(--border); }
+.progress::-webkit-progress-value { background: var(--brand); }
+.progress::-moz-progress-bar { background: var(--brand); }
+/* Push and Email for one flight: a pair of toggles (aria-pressed says which are on). */
+.channels { display: flex; align-items: center; gap: var(--space-xs); }
+.channels .meta { margin: 0 var(--space-xs) 0 0; }
+.channel {
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-sm);
+  cursor: pointer;
+}
+.channel--on { border-color: var(--brand-ink); color: var(--brand-ink); font-weight: 600; }
+.channel:disabled { cursor: not-allowed; opacity: 0.6; }
+/* Turning notifications on for this browser (js/alerts.js shows it). */
+.push { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-md); }
+.push__text { flex: 1 1 12rem; margin: 0; }
+.push--banner { padding: var(--space-md); border-radius: var(--radius-card); background: var(--brand-soft); }
 
 /* Offline and outbox state */
 

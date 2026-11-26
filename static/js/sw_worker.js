@@ -12,6 +12,8 @@
  *             is gone, so every cached page goes
  *   sync      Background Sync: send the outbox with no page open
  *   message   'cache-page' (cache the page that just loaded), 'drain'
+ *   push      show a take-off or landing alert (RAS-144)
+ *   notificationclick  open the app at the alert's page, or focus it
  *
  * Updates apply at once (skipWaiting + claim): static files have hashed
  * names, so an old page never asks for a file the new caches lack.
@@ -144,4 +146,30 @@ self.addEventListener('message', (event) => {
   } else if (data.type === 'drain') {
     event.waitUntil(Outbox.drain());
   }
+});
+
+// A take-off or landing alert (RAS-144). Every push shows a notification:
+// browsers revoke push from a worker that receives one and shows nothing.
+self.addEventListener('push', (event) => {
+  let data = null;
+  try {
+    data = event.data ? event.data.json() : null;
+  } catch (error) {
+    data = null;
+  }
+  const shown = SwCore.notificationFor(data, config);
+  event.waitUntil(self.registration.showNotification(shown.title, shown.options));
+});
+
+// A tap on an alert: focus the app if it's open (at that page), else open it.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || config.scope;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((client) => new URL(client.url).pathname.startsWith(config.scope));
+      if (open) return open.navigate(url).then((client) => (client || open).focus());
+      return self.clients.openWindow(url);
+    })
+  );
 });

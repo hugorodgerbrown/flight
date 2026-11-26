@@ -1,0 +1,24 @@
+{% comment %}The HTML part of a take-off or landing alert: the same things as alert.txt.
+   Inline styles only, because mail clients ignore stylesheets (DESIGN.md,
+   "The sign-in email"). Colours are the app's: --text-1, --text-2, --border,
+   --bg, --brand. The links are built in code from SITE_URL, never from input,
+   so semgrep's var-in-href is silenced on those lines.{% endcomment %}
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{{ words.subject }}</title></head>
+<body style="margin:0;padding:24px 16px;background:#ffffff;color:#14171a;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:1.5">
+<p style="margin:0 0 4px;font-size:22px;font-weight:700">{% if event == "take_off" %}{{ item.flight }} is in the air{% else %}{{ item.flight }} has landed{% endif %}</p>
+<p style="margin:0 0 24px;color:#4b5563">{{ words.body }}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 0 24px;border-collapse:collapse">
+<tr>
+<td width="37%" style="width:37%;vertical-align:top"><div style="font-size:28px;font-weight:700">{{ origin.code }}</div><div style="color:#4b5563;font-size:14px">{{ origin.label }}<br>{{ took_off }}</div></td>
+<td width="25%" style="width:25%;vertical-align:middle;padding:0 12px"><div style="height:2px;background:{{ brand_colour }}"></div></td>
+<td width="38%" style="width:38%;vertical-align:top;text-align:right"><div style="font-size:28px;font-weight:700">{{ destination.code }}</div><div style="color:#4b5563;font-size:14px">{{ destination.label }}<br>{% if event == "take_off" %}{% if arrives %}about {{ arrives }}{% endif %}{% else %}{{ landed }}{% endif %}</div></td>
+</tr>
+</table>
+{# nosemgrep: generic.html-templates.security.var-in-href.var-in-href #}
+<p style="margin:0 0 24px"><a href="{{ app_url }}" style="display:inline-block;padding:12px 16px;border-radius:8px;background:{{ brand_colour }};color:#ffffff;font-weight:600;text-decoration:none">See the flights you follow</a></p>
+{# nosemgrep: generic.html-templates.security.var-in-href.var-in-href #}
+<p style="margin:0;color:#4b5563;font-size:13px">You're following {{ item.flight }} on {{ site_name }}.{% if event == "take_off" %} We'll email once more when it lands.{% endif %} <a href="{{ stop_url }}" style="color:#4b5563">Stop alerts for this flight</a>.</p>
+</body>
+</html>

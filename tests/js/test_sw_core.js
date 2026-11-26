@@ -90,3 +90,26 @@ describe('isSignedOut', () => {
     expect(core.isSignedOut(res(overrides))).toBe(expected);
   });
 });
+
+describe('notificationFor (RAS-144)', () => {
+  const config = { scope: '/app/', appName: 'Flight', icon: '/static/icons/icon-192.png' };
+
+  it('shows an alert, opening its page in the app', () => {
+    const shown = core.notificationFor(
+      { title: 'BA117 has taken off', body: 'Left LHR at 11:42.', url: '/app/#following', tag: 't' },
+      config
+    );
+    expect(shown.title).toBe('BA117 has taken off');
+    expect(shown.options).toMatchObject({ body: 'Left LHR at 11:42.', tag: 't', data: { url: '/app/#following' } });
+  });
+
+  it('never opens a page outside the app', () => {
+    const shown = core.notificationFor({ title: 'x', url: 'https://elsewhere.test/' }, config);
+    expect(shown.options.data.url).toBe('/app/');
+  });
+
+  it('falls back to the app name for a message with nothing to show', () => {
+    expect(core.notificationFor(null, config).title).toBe('Flight');
+    expect(core.notificationFor({ title: 3 }, config).options.body).toBe('');
+  });
+});

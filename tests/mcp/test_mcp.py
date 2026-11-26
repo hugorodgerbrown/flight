@@ -92,11 +92,12 @@ def test_tools_without_ui_have_no_meta(rpc: Any) -> None:
 
 def test_every_tool_has_a_title_and_hints(rpc: Any) -> None:
     """Claude's connector directory needs a title and the read/destructive hints on each."""
+    writes = {"follow", "unfollow"}
     for described in rpc("tools/list")["tools"]:
         annotations = described["annotations"]
         assert described["title"] == annotations["title"] != ""
-        assert annotations["readOnlyHint"] is True
-        assert annotations["destructiveHint"] is False
+        assert annotations["readOnlyHint"] is (described["name"] not in writes)
+        assert annotations["destructiveHint"] is (described["name"] == "unfollow")
         assert annotations["openWorldHint"] is (described["name"] == "where_is")
 
 

@@ -8,7 +8,9 @@
 # - flight: this app's own (DATABASE_URL, DJANGO_SECRET_KEY,
 #   ACCOUNTS_EMAIL_KEY, the mail key and sender, SITE_URL and FIVEBAR_DOMAIN;
 #   FIVEBAR_TOKEN, added by hand, counts MCP tool calls; FR24_API_KEY, added
-#   by hand, is the Flightradar24 API key).
+#   by hand, is the Flightradar24 API key; WEBPUSH_PUBLIC_KEY and
+#   WEBPUSH_PRIVATE_KEY, added by hand from `manage.py make_push_keys`, sign
+#   push alerts).
 #
 # Both are referenced here, not declared, so a Blueprint sync never
 # overwrites them. To override a shared value for this app only, set it on
@@ -51,6 +53,21 @@ services:
     startCommand: >-
       uv run --no-sync python manage.py purge_idempotency_records --commit &&
       uv run --no-sync python manage.py purge_sign_in_requests --commit
+    envVars:
+      - fromGroup: titan
+      - fromGroup: flight
+
+  # Checks followed flights for take-offs and landings, and sends their
+  # alerts (RAS-144). Every two minutes: an alert lands within about two to
+  # three minutes of Flightradar24 seeing the event.
+  - type: cron
+    name: flight-watch
+    runtime: python
+    region: frankfurt
+    plan: starter
+    schedule: "*/2 * * * *"
+    buildCommand: pip install uv==0.12.22 && uv sync --locked --no-dev
+    startCommand: uv run --no-sync python manage.py watch_flights --commit
     envVars:
       - fromGroup: titan
       - fromGroup: flight

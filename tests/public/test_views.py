@@ -86,10 +86,11 @@ def test_home_says_what_flight_does(client: Client, with_mcp: str) -> None:
 
 
 def test_features_not_built_yet_say_so(client: Client) -> None:
-    """Alerts and live sharing are shown as coming, in words."""
+    """Live sharing is shown as coming, in words; alerts have shipped (RAS-144)."""
     content = client.get(reverse("public:home")).content.decode()
-    assert content.count('<span class="tag">Coming soon</span>') == 2
-    assert "Alerts when it takes off and lands, by push or email." in content
+    assert content.count('<span class="tag">Coming soon</span>') == 1
+    assert "<h2>Hear when it takes off and lands</h2>" in content
+    assert "ask Claude to follow it" in content
 
 
 def test_home_links_to_the_connector_steps(client: Client, with_mcp: str) -> None:

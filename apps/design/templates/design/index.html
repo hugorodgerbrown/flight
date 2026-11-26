@@ -143,6 +143,60 @@
     </ul>
   </section>
 
+  <section class="card stack" aria-labelledby="ds-following">
+    <h2 id="ds-following">Following flights</h2>
+    <p class="meta">The app home's Following list (apps/alerts): the notification banner, the follow form, and a flight in each state.</p>
+    <div class="push push--banner">
+      <p class="push__text">Turn on notifications on this device to get alerts here.</p>
+      <button class="button" type="button">Turn on</button>
+    </div>
+    <div class="push">
+      <p class="push__text">Notifications are on for this device. (The account page shows every state, without the banner.)</p>
+      <button class="button button--secondary" type="button">Turn off</button>
+    </div>
+    <div class="follow-form">
+      <input type="text" aria-label="Flight number" placeholder="e.g. BA117">
+      <button class="button" type="button">Follow</button>
+    </div>
+    <ul class="flight-list">
+      <li class="flight">
+        <div class="flight__head"><span class="flight__number">BA117</span><span class="status status--airborne">In the air</span></div>
+        <p class="flight__route">London Heathrow → New York JFK</p>
+        <progress class="progress" max="1" value="0.62" aria-label="Flight time gone">62%</progress>
+        <p class="meta">Took off 11:42 · lands about 14:55 local (in 2 h 48 m)</p>
+        <div class="flight__actions">
+          <div class="channels">
+            <span class="meta">Alerts</span>
+            <button class="channel channel--on" type="button" aria-pressed="true">Push</button>
+            <button class="channel" type="button" aria-pressed="false">Email</button>
+          </div>
+          <button class="button button--quiet" type="button">Stop</button>
+        </div>
+      </li>
+      <li class="flight">
+        <div class="flight__head"><span class="flight__number">EZY8812</span><span class="status status--waiting">Waiting to take off</span></div>
+        <p class="meta">We'll tell you when it takes off.</p>
+        <div class="flight__actions">
+          <div class="channels">
+            <span class="meta">Alerts</span>
+            <button class="channel channel--on" type="button" aria-pressed="true">Push</button>
+            <button class="channel" type="button" disabled>Email</button>
+          </div>
+          <button class="button button--quiet" type="button">Stop</button>
+        </div>
+      </li>
+      <li class="flight">
+        <div class="flight__head"><span class="flight__number">LH903</span><span class="status status--landed">Landed</span></div>
+        <p class="flight__route">Frankfurt → London Heathrow</p>
+        <p class="meta">Landed 08:31 local, 1 h 32 m after take-off. Clears tomorrow.</p>
+      </li>
+      <li class="flight">
+        <div class="flight__head"><span class="flight__number">QF1</span><span class="status status--ended">Stopped</span></div>
+        <p class="meta">It didn't take off within a day, so we stopped following it.</p>
+      </li>
+    </ul>
+  </section>
+
   <section class="card stack" aria-labelledby="ds-pages">
     <h2 id="ds-pages">Public pages</h2>
     <p class="meta">The front page is the app's own (DESIGN.md, "The front page"); these are the parts the public pages share.</p>

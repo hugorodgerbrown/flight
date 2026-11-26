@@ -1,1 +1,23 @@
-{# The flights this person follows, with their take-off and landing alerts. Empty until alerts ship (a separate issue fills it). #}
+{# The flights this person follows, with their take-off and landing alerts (apps/alerts, RAS-144). #}
+<section class="card stack" id="following">
+  <h2>Follow a flight</h2>
+  {% include "alerts/_push.html" with push_place="home" %}
+  <form class="follow-form" method="post" action="{% url 'alerts:follow' %}" novalidate>
+    {% csrf_token %}
+    <input type="text" name="flight" id="id_flight" aria-label="Flight number" value="{{ follow_form.flight.value|default_if_none:'' }}"
+           placeholder="e.g. BA117" autocomplete="off" autocapitalize="characters" spellcheck="false"
+           inputmode="text" maxlength="12" required
+           {% if follow_form.flight.errors %}aria-invalid="true" aria-describedby="flight-error"{% endif %}>
+    <button class="button" type="submit">Follow</button>
+  </form>
+  {% if follow_form.flight.errors %}<p class="form-error" id="flight-error" role="alert">{{ follow_form.flight.errors.0 }}</p>{% endif %}
+  <p class="meta">We'll tell you when it next takes off and when it lands. Use the number of the airline flying it: it's on your boarding pass.</p>
+  {% if following %}
+    <h2>Following</h2>
+    <ul class="flight-list">
+      {% for item, progress in following %}{% include "alerts/_flight.html" %}{% endfor %}
+    </ul>
+  {% else %}
+    <p class="meta">Follow a flight to hear when it takes off and lands.</p>
+  {% endif %}
+</section>

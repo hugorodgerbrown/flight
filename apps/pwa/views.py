@@ -71,6 +71,9 @@ def worker_config() -> dict[str, object]:
         "neverCache": conf.NEVER_CACHE,
         "precache": [static(p) for p in conf.PRECACHE_STATIC],
         "scripts": [static(p) for p in conf.WORKER_SCRIPTS],
+        # What an alert notification shows (RAS-144).
+        "appName": conf.APP_NAME,
+        "icon": static("icons/icon-192.png"),
     }
     digest = hashlib.sha256(json.dumps(config, sort_keys=True).encode())
     digest.update(settings.APP_VERSION.encode())
