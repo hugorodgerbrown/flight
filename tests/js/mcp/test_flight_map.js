@@ -275,11 +275,16 @@ describe('long-haul on a globe (RAS-143)', () => {
     const end = ahead[ahead.length - 1];
     expect(end.lat).toBeCloseTo(JFK.lat, 6);
     expect(end.lon).toBeCloseTo(JFK.lon, 6);
-    // It leaves the way the plane was going, not straight for JFK.
-    const heading = self.FlightMap.bearing({ lat: 55.8, lon: -14.2 }, plane);
+    // It leaves the way the plane arrived (no kink), not straight for JFK.
+    const turn = (a, b) => {
+      const d = Math.abs(a - b) % (2 * Math.PI);
+      return Math.min(d, 2 * Math.PI - d);
+    };
+    const arriving = self.FlightMap.bearing(plane, { lat: 55.8, lon: -14.2 }) + Math.PI;
     const leaving = self.FlightMap.bearing(plane, ahead[1]);
     const direct = self.FlightMap.bearing(plane, JFK);
-    expect(Math.abs(leaving - heading)).toBeLessThan(Math.abs(direct - heading));
+    expect(turn(leaving, arriving)).toBeLessThan((2 * Math.PI) / 180);
+    expect(turn(direct, arriving)).toBeGreaterThan((10 * Math.PI) / 180);
   });
 
   it('goes straight for the destination when the plane is heading away from it', () => {

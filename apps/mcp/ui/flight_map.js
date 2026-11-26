@@ -100,7 +100,8 @@
   function curveAhead(plane, destination, behind) {
     const togo = arc(plane, destination);
     if (!behind || togo === 0) return greatCircle(plane, destination, 1, STEPS);
-    const heading = bearing(behind, plane);
+    // The heading on arrival at the plane: the bearing back to `behind`, reversed.
+    const heading = bearing(plane, behind) + Math.PI;
     let turn = Math.abs(heading - bearing(plane, destination));
     turn = Math.min(turn, 2 * Math.PI - turn);
     if (turn > Math.PI / 2) return greatCircle(plane, destination, 1, STEPS);
