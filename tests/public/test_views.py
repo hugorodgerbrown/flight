@@ -1,10 +1,13 @@
 """Tests for apps.public.views: the homepage, terms, privacy and help."""
 
+import re
+from typing import Any
+
 import pytest
 from django.test import Client
 from django.urls import reverse
 
-from apps.public import views
+from apps.public import conf, views
 
 pytestmark = pytest.mark.django_db
 
@@ -116,3 +119,44 @@ def test_help_leaves_the_steps_out_without_mcp(client: Client, without_mcp: None
     content = client.get(reverse("public:help")).content.decode()
     assert 'id="use-with-ai"' not in content
     assert "data-copy" not in content
+
+
+@pytest.mark.parametrize("name", PAGES)
+def test_public_pages_answer_head(client: Client, name: str) -> None:
+    """Uptime monitors and link checkers send HEAD: it's a 200, not a 405."""
+    assert client.head(reverse(name)).status_code == 200
+
+
+def test_robots_txt_keeps_crawlers_to_the_public_pages(client: Client, settings: Any) -> None:
+    """The app, admin, sign-in, OAuth and MCP are off limits; the sitemap is named."""
+    settings.SITE_URL = "https://flight.example"
+    response = client.get("/robots.txt")
+    assert response.status_code == 200
+    assert response["Content-Type"] == "text/plain; charset=utf-8"
+    body = response.content.decode()
+    for path in ("/app/", "/admin/", "/signin/", "/oauth/", "/mcp"):
+        assert f"Disallow: {path}\n" in body
+    assert "Disallow: /\n" not in body
+    assert "Sitemap: https://flight.example/sitemap.xml\n" in body
+
+
+def test_sitemap_lists_the_public_pages(client: Client, settings: Any) -> None:
+    """Absolute links to the front page, help, terms and privacy notice, and nothing else."""
+    settings.SITE_URL = "https://flight.example"
+    response = client.get("/sitemap.xml")
+    assert response.status_code == 200
+    assert response["Content-Type"] == "application/xml; charset=utf-8"
+    locs = re.findall(r"<loc>(.*?)</loc>", response.content.decode())
+    assert locs == [
+        "https://flight.example/",
+        "https://flight.example/help/",
+        "https://flight.example/terms/",
+        "https://flight.example/privacy/",
+    ]
+
+
+def test_help_gives_the_contact_address(client: Client) -> None:
+    """The help page's "Still stuck?" is a real address, as a mail link."""
+    content = client.get(reverse("public:help")).content.decode()
+    assert f'href="mailto:{conf.CONTACT_EMAIL}"' in content
+    assert "example.com" not in content

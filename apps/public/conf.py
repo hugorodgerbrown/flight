@@ -6,6 +6,10 @@ links"); the tags in ``templatetags/site_footer.py`` draw them. Set once by
 the project template from its answers; edit freely.
 """
 
+# Where people write to us: the help page, the terms and the privacy
+# notice all give this address.
+CONTACT_EMAIL = "support@ultraniche.ai"
+
 # The footer's copyright line: "© <this year> <holder>. All rights reserved."
 COPYRIGHT_HOLDER = "Hugo Rodger-Brown"
 
