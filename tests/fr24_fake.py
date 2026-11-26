@@ -129,9 +129,8 @@ def install(monkeypatch: Any, settings: Any) -> dict[str, Any]:
             points = state["tracks"].get(params["flight_id"])
             if points is None or points == "forbidden":
                 status = 403 if points else 404
-                raise urllib.error.HTTPError(
-                    request.full_url, status, "error", {}, io.BytesIO(b"{}")
-                )  # type: ignore[arg-type]
+                body = io.BytesIO(b"{}")
+                raise urllib.error.HTTPError(request.full_url, status, "error", {}, body)  # type: ignore[arg-type]
             answer = [{"fr24_id": params["flight_id"], "tracks": points}]
         else:
             code = path.split("/")[3]
