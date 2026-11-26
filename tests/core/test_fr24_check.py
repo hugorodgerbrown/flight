@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 import urllib.error
 from typing import Any
 
@@ -53,33 +54,52 @@ class FakeResponse(io.BytesIO):
 
 @pytest.fixture
 def fr24(monkeypatch: Any, settings: Any) -> dict[str, Any]:
-    """Answer Flightradar24 from ``answers`` (path to rows or an HTTP status); record calls."""
+    """Answer Flightradar24 from ``answers`` (path to rows or an HTTP status); record calls.
+
+    ``errors`` maps a path to statuses answered, one per call (None answers as usual);
+    ``body`` is the JSON an error answers with.
+    """
     settings.FR24_API_KEY = "test-key"
-    state: dict[str, Any] = {"calls": [], "answers": {}, "credits": [100, 112], "pauses": 0}
+    state: dict[str, Any] = {
+        "calls": [],
+        "answers": {},
+        "errors": {},
+        "body": {},
+        "credits": [100, 112],
+        "pauses": [],
+    }
+
+    def refuse(request: Any, status: int) -> None:
+        body = io.BytesIO(json.dumps(state["body"]).encode())
+        raise urllib.error.HTTPError(request.full_url, status, "error", {}, body)  # type: ignore[arg-type]
 
     def opener(request: Any) -> FakeResponse:
         path, _, query = request.full_url.removeprefix(fr24_check.BASE_URL).partition("?")
         state["calls"].append((path, query, dict(request.header_items())))
+        if state["errors"].get(path):
+            status = state["errors"][path].pop(0)
+            if status:
+                refuse(request, status)
         if path == "/usage":
             used = state["credits"].pop(0)
             return FakeResponse(json.dumps({"data": [{"credits": used}]}).encode())
         answer = state["answers"].get(path, [])
         if isinstance(answer, int):
-            raise urllib.error.HTTPError(request.full_url, answer, "error", {}, None)  # type: ignore[arg-type]
+            refuse(request, answer)
         return FakeResponse(json.dumps({"data": answer}).encode())
 
     def pause(seconds: float) -> None:
-        state["pauses"] += 1
+        state["pauses"].append(seconds)
 
     monkeypatch.setattr(fr24_check, "opener", opener)
     monkeypatch.setattr(fr24_check, "pause", pause)
     return state
 
 
-def run(*args: str) -> str:
+def run(*args: str, err: io.StringIO | None = None) -> str:
     """Run the command and return what it printed."""
     out = io.StringIO()
-    call_command("fr24_check", *args, stdout=out)
+    call_command("fr24_check", *args, stdout=out, stderr=err or io.StringIO())
     return out.getvalue()
 
 
@@ -102,7 +122,7 @@ def test_a_lookup_reports_coverage_position_and_credits(fr24: dict[str, Any]) ->
     assert "EI154: EI154 DUB-LHR, on the ground; last took off 2026-11-25T08:00:00" in printed
     assert "| XX1 | not found |" in printed
     assert "Found 2 of 3; 1 in the air with a live position." in printed
-    assert "Calls: 4 (including 2 usage reads). Credits used: 12" in printed
+    assert "Calls: 4 (including usage reads). Credits used: 12" in printed
     paths = [path for path, _, _ in fr24["calls"]]
     assert paths == ["/usage", "/live/flight-positions/full", "/flight-summary/full", "/usage"]
     _, query, headers = fr24["calls"][2]
@@ -110,8 +130,9 @@ def test_a_lookup_reports_coverage_position_and_credits(fr24: dict[str, Any]) ->
     assert "flight_datetime_from=" in query
     assert headers["Authorization"] == "Bearer test-key"
     assert headers["Accept-version"] == "v1"
+    assert headers["User-agent"] == fr24_check.USER_AGENT
     assert "test-key" not in printed
-    assert fr24["pauses"] == 3
+    assert fr24["pauses"] == [fr24_check.GAP_SECONDS] * 3
 
 
 def test_twenty_flights_go_in_two_batches(fr24: dict[str, Any]) -> None:
@@ -151,7 +172,12 @@ def test_it_needs_a_key(fr24: dict[str, Any], settings: Any) -> None:
 
 @pytest.mark.parametrize(
     ("status", "message"),
-    [(401, "refused the key"), (402, "no credits left"), (500, "answered 500")],
+    [
+        (401, "refused the key"),
+        (402, "no credits left"),
+        (403, "answered 403 \\(forbidden\\) for /live"),
+        (500, "answered 500"),
+    ],
 )
 def test_errors_stop_the_run(fr24: dict[str, Any], status: int, message: str) -> None:
     """A refused key, an empty plan or a server error fails the command (non-zero exit)."""
@@ -192,3 +218,55 @@ def test_a_live_leg_takes_only_its_own_summary() -> None:
     assert fr24_check.pick_summary(LIVE, [yesterday]) is None
     assert fr24_check.pick_summary(LIVE, [yesterday, SUMMARY]) is SUMMARY
     assert fr24_check.pick_summary(None, [yesterday, SUMMARY]) is SUMMARY
+
+
+def test_an_error_shows_what_flightradar24_said(fr24: dict[str, Any]) -> None:
+    """The API's own message and details go in the error, so a refusal can be told apart."""
+    fr24["answers"] = {"/live/flight-positions/full": 403}
+    fr24["body"] = {"message": "Forbidden", "details": "Client blocked."}
+    with pytest.raises(
+        CommandError, match=re.escape("Flightradar24 said: Forbidden. Client blocked.")
+    ):
+        run("BA117", "--commit")
+
+
+def test_an_error_body_that_isnt_json_is_left_out() -> None:
+    """A body that isn't a JSON object adds nothing to the message."""
+    exc = urllib.error.HTTPError("u", 500, "error", {}, io.BytesIO(b"<html>"))  # type: ignore[arg-type]
+    assert fr24_check.explanation(exc) == ""
+    exc = urllib.error.HTTPError("u", 500, "error", {}, io.BytesIO(b"[1]"))  # type: ignore[arg-type]
+    assert fr24_check.explanation(exc) == ""
+
+
+def test_a_rate_limited_call_is_tried_once_more(fr24: dict[str, Any]) -> None:
+    """A 429 waits RETRY_SECONDS and tries again; the run carries on."""
+    fr24["errors"] = {"/live/flight-positions/full": [429]}
+    fr24["answers"] = {"/live/flight-positions/full": [LIVE]}
+    assert "in the air" in run("BA117", "--commit")
+    assert fr24_check.RETRY_SECONDS in fr24["pauses"]
+
+
+def test_a_second_429_stops_the_run(fr24: dict[str, Any]) -> None:
+    """Rate-limited twice in a row, the command fails with the API's message."""
+    fr24["errors"] = {"/live/flight-positions/full": [429, 429]}
+    fr24["body"] = {"message": "Rate limit exceeded"}
+    with pytest.raises(CommandError, match=r"answered 429 .*Rate limit exceeded"):
+        run("BA117", "--commit")
+
+
+def test_a_failed_credits_read_doesnt_stop_the_lookups(fr24: dict[str, Any]) -> None:
+    """If /usage fails, the lookups still run and the credits are reported as unknown."""
+    fr24["errors"] = {"/usage": [403]}
+    fr24["answers"] = {"/live/flight-positions/full": [LIVE]}
+    err = io.StringIO()
+    printed = run("BA117", "--commit", err=err)
+    assert "BA117: BA117 LHR-JFK, in the air" in printed
+    assert "Credits used: unknown (the usage read failed)." in printed
+    assert "Couldn't read the credits" in err.getvalue()
+    assert [path for path, _, _ in fr24["calls"]].count("/usage") == 1
+
+
+def test_a_failed_second_credits_read_is_unknown_too(fr24: dict[str, Any]) -> None:
+    """If only the closing /usage read fails, the credits are unknown, not a guess."""
+    fr24["errors"] = {"/usage": [None, 500]}
+    assert "Credits used: unknown" in run("BA117", "--commit")

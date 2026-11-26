@@ -37,3 +37,6 @@ it. The run's results are recorded on RAS-134.
   personal use.
 - A sandbox key returns sample data. Coverage numbers come from a run with
   a paid key.
+- Flightradar24 refuses Python's default User-Agent (`Python-urllib`) even
+  with a good key, while curl gets through (RAS-136). Every call sends
+  Flight's own User-Agent, and a 403 is reported apart from a refused key.
