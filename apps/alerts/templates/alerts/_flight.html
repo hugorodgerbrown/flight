@@ -1,0 +1,32 @@
+{# One followed flight in the Following list: its state, route, times and alert channels. #}
+{% load alerts %}
+<li class="flight">
+  <div class="flight__head">
+    <span class="flight__number">{{ item.flight }}</span>
+    <span class="status status--{{ item.state }}">{{ item|status_label }}</span>
+  </div>
+  {% if item.origin %}<p class="flight__route">{{ item|route }}</p>{% endif %}
+  {% if progress is not None %}
+    <progress class="progress" max="1" value="{{ progress }}" aria-label="{{ item.flight }}'s flight time gone">{{ progress|percent }}</progress>
+  {% endif %}
+  <p class="meta">{{ item|times }}</p>
+  {% if item.state == "waiting" or item.state == "airborne" %}
+    <div class="flight__actions">
+      <form class="channels" method="post" action="{% url 'alerts:toggle' item.uuid %}">
+        {% csrf_token %}
+        <span class="meta">Alerts</span>
+        <button class="channel{% if item.push %} channel--on{% endif %}" type="submit" name="channel" value="push" aria-pressed="{{ item.push|yesno:'true,false' }}" aria-label="Push alerts for {{ item.flight }}">Push</button>
+        {% if has_email %}
+          <button class="channel{% if item.email %} channel--on{% endif %}" type="submit" name="channel" value="email" aria-pressed="{{ item.email|yesno:'true,false' }}" aria-label="Email alerts for {{ item.flight }}">Email</button>
+        {% else %}
+          <button class="channel" type="button" disabled aria-describedby="no-email-{{ item.uuid }}">Email</button>
+        {% endif %}
+      </form>
+      <form method="post" action="{% url 'alerts:stop_following' item.uuid %}">
+        {% csrf_token %}
+        <button class="button button--quiet" type="submit" aria-label="Stop following {{ item.flight }}">Stop</button>
+      </form>
+    </div>
+    {% if not has_email %}<p class="meta" id="no-email-{{ item.uuid }}">Sign out and in again to get email alerts too.</p>{% endif %}
+  {% endif %}
+</li>

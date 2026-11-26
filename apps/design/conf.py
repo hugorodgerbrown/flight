@@ -36,4 +36,5 @@ NEEDS_NETWORK: dict[str, str] = {
     "js/webauthn_json.js": "passkeys need the server to sign in or register",
     "js/passkeys.js": "passkeys need the server to sign in or register",
     "js/design.js": "the design page is a staff reference, not the app",
+    "js/alerts.js": "turning push notifications on needs the server and the push service",
 }

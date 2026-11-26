@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}{{ pwa.name }}{% endblock %}
-{% block extra_js %}<script src="{% static 'js/copy.js' %}" defer></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/copy.js' %}" defer></script><script src="{% static 'js/alerts.js' %}" defer></script>{% endblock %}
 {% block content %}
   <section class="card stack">
     <h1>Ask Claude where your flight is</h1>

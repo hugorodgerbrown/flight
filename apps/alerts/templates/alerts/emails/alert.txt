@@ -1,0 +1,15 @@
+{% autoescape off %}{{ words.title }}
+
+{{ words.body }}
+
+{{ origin.label }}{% if origin.code %} ({{ origin.code }}){% endif %} → {{ destination.label }}{% if destination.code %} ({{ destination.code }}){% endif %}
+{% if event == "take_off" %}Took off: {{ took_off }} local{% if arrives %}
+Lands: about {{ arrives }} local{% endif %}{% else %}Took off: {{ took_off }} local
+Landed: {{ landed }} local{% endif %}
+
+See the flights you follow:
+{{ app_url }}
+
+You're following {{ item.flight }} on {{ site_name }}.{% if event == "take_off" %} We'll email once more when it lands.{% endif %}
+Stop alerts for this flight: {{ stop_url }}
+{% endautoescape %}

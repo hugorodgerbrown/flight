@@ -1,0 +1,14 @@
+{% extends "public_base.html" %}
+{% block title %}Alerts stopped · {{ pwa.name }}{% endblock %}
+{% block content %}
+  <section class="card stack">
+    {% if flight %}
+      <h1>Alerts for {{ flight }} stopped</h1>
+      <p>You won't hear any more about {{ flight }}. Follow it again from the app whenever you like.</p>
+    {% else %}
+      <h1>There's nothing to stop</h1>
+      <p>This flight isn't followed any more, so it sends no alerts.</p>
+    {% endif %}
+    <p><a href="{% url 'flights:home' %}#following">Flights you follow</a></p>
+  </section>
+{% endblock %}

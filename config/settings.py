@@ -87,6 +87,13 @@ FIVEBAR_TOKEN: str = config("FIVEBAR_TOKEN", default="")
 # check reads it so far (apps/core/management/commands/fr24_check.py).
 FR24_API_KEY: str = config("FR24_API_KEY", default="")
 
+# Web Push (RAS-144): the VAPID key pair alerts are signed with, made once by
+# `python manage.py make_push_keys`. Without both, push is off.
+WEBPUSH_PUBLIC_KEY: str = config("WEBPUSH_PUBLIC_KEY", default="")
+WEBPUSH_PRIVATE_KEY: str = config("WEBPUSH_PRIVATE_KEY", default="")
+# Who push services contact about this app's pushes: the site's address.
+WEBPUSH_CONTACT: str = config("WEBPUSH_CONTACT", default=SITE_URL)
+
 # Content Security Policy: everything from this origin, nothing inline.
 # There is no inline <script> anywhere; the launch-screen gate is a tiny
 # blocking file instead, so the policy needs no nonce. htmx's eval and
@@ -123,6 +130,7 @@ INSTALLED_APPS = [
     "apps.public",
     "apps.pwa",
     "apps.flights",
+    "apps.alerts",
     "apps.design",
     # Before mcp_auth so the project's own templates win.
     "apps.mcp",
@@ -212,7 +220,9 @@ SIGN_IN_MAX_CODE_ATTEMPTS = 5
 ACCOUNTS_EMAIL_KEY: str = config(
     "ACCOUNTS_EMAIL_KEY", default="insecure-local-development-only" if DEBUG else ""
 )
-ACCOUNTS_KEEP_EMAIL = False
+# Flight keeps it: take-off and landing alerts are emailed (RAS-144,
+# docs/decisions/flight-keeps-email-addresses-for-alerts.md).
+ACCOUNTS_KEEP_EMAIL = True
 
 # Deleting an account (apps/accounts/deletion.py) removes every row with a
 # CASCADE foreign key to the user. List a callable here, as a dotted path
@@ -299,7 +309,9 @@ OAUTH2_PROVIDER = oauth2_settings(
     scope_description="Look up where flights are",
 )
 MCP_AUTH = {
-    "CAN_CONNECT": "mcp_auth.policy.active_user",
+    # Locked for launch: only staff accounts (ticked in the admin) may connect
+    # (docs/decisions/flight-launches-with-mcp-locked-to-staff.md).
+    "CAN_CONNECT": "apps.mcp.policy.staff_only",
     # The consent page's "Signed in as": the masked address, not the key.
     "ACCOUNT_NAME": "apps.accounts.models.account_name",
     # ChatGPT's callbacks as well as Claude's and loopback.

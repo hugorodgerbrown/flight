@@ -92,11 +92,12 @@ def test_tools_without_ui_have_no_meta(rpc: Any) -> None:
 
 def test_every_tool_has_a_title_and_hints(rpc: Any) -> None:
     """Claude's connector directory needs a title and the read/destructive hints on each."""
+    writes = {"follow", "unfollow"}
     for described in rpc("tools/list")["tools"]:
         annotations = described["annotations"]
         assert described["title"] == annotations["title"] != ""
-        assert annotations["readOnlyHint"] is True
-        assert annotations["destructiveHint"] is False
+        assert annotations["readOnlyHint"] is (described["name"] not in writes)
+        assert annotations["destructiveHint"] is (described["name"] == "unfollow")
         assert annotations["openWorldHint"] is (described["name"] == "where_is")
 
 
@@ -225,6 +226,25 @@ def test_staff_only_policy() -> None:
     assert staff_only(SimpleNamespace(is_active=True, is_staff=True))
     assert not staff_only(SimpleNamespace(is_active=True, is_staff=False))
     assert not staff_only(SimpleNamespace(is_active=False, is_staff=True))
+
+
+def test_flight_lets_only_staff_connect(settings: Any) -> None:
+    """Locked for launch (RAS-148): the policy is staff_only, not any active account."""
+    assert settings.MCP_AUTH["CAN_CONNECT"] == "apps.mcp.policy.staff_only"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("is_staff", "allowed"), [(True, True), (False, False)])
+def test_the_endpoint_serves_only_staff(client: Client, is_staff: bool, allowed: bool) -> None:
+    """A signed-in account that isn't staff is refused, even with a valid token."""
+    token = TestMCPAuth().token_for(UserFactory.create(is_staff=is_staff))
+    response = client.post(
+        "/mcp",
+        json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"}),
+        content_type="application/json",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert (response.status_code == 200) is allowed
 
 
 @pytest.mark.django_db

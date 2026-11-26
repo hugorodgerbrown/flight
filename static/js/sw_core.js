@@ -1,8 +1,8 @@
 /*
  * static/js/sw_core.js — the service worker's decisions, as pure functions.
  *
- * Which strategy a request gets, what the caches are called, and whether a
- * response may be stored. Unit-tested in tests/js/test_sw_core.js;
+ * Which strategy a request gets, what the caches are called, whether a
+ * response may be stored, and what a push message shows. Unit-tested in tests/js/test_sw_core.js;
  * sw_worker.js does the caching.
  */
 (function () {
@@ -65,5 +65,28 @@
     return response.redirected || response.status === 401 || response.status === 403;
   }
 
-  self.SwCore = Object.freeze({ cacheNames, isStaleCache, route, isStorable, isSignedOut });
+  /**
+   * The notification a push message shows (RAS-144): a take-off or landing
+   * alert's title and body, tagged so a repeat replaces rather than stacks,
+   * and the app page a tap opens. A message that isn't one of ours still
+   * shows something, because a push must always show a notification.
+   * @param {object|null} data  the push message's JSON
+   * @param {object} config  the worker's config (scope, icon)
+   */
+  function notificationFor(data, config) {
+    const message = data && typeof data === 'object' ? data : {};
+    const url = typeof message.url === 'string' && message.url.startsWith(config.scope) ? message.url : config.scope;
+    return {
+      title: typeof message.title === 'string' && message.title ? message.title : config.appName,
+      options: {
+        body: typeof message.body === 'string' ? message.body : '',
+        tag: typeof message.tag === 'string' ? message.tag : undefined,
+        icon: config.icon,
+        badge: config.icon,
+        data: { url: url },
+      },
+    };
+  }
+
+  self.SwCore = Object.freeze({ cacheNames, isStaleCache, route, isStorable, isSignedOut, notificationFor });
 })();

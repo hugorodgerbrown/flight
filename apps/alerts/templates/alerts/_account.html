@@ -1,0 +1,15 @@
+{# The account page's Alerts section: where alerts go (RAS-144). #}
+<section class="card stack" id="alerts">
+  <h2>Alerts</h2>
+  <p>When a flight you follow takes off and lands, {{ pwa.name }} tells you by push notification, by email, or both. Choose for each flight on the <a href="{% url 'flights:home' %}#following">Following list</a>.</p>
+  <p><span class="meta">Email alerts go to</span><br>
+    {% if user.email %}<strong>{{ user.email }}</strong>{% else %}<span class="meta">No address yet: sign out and in again to get email alerts.</span>{% endif %}</p>
+  {% if push_key %}
+    {% include "alerts/_push.html" with push_place="account" %}
+    {% if push_devices %}
+      <p class="meta">Notifications go to {{ push_devices|join:", " }}.</p>
+    {% endif %}
+  {% else %}
+    <p class="meta">Push notifications aren't set up yet.</p>
+  {% endif %}
+</section>

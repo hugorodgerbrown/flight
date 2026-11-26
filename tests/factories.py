@@ -15,6 +15,7 @@ from apps.accounts.models import (
     mask_email,
     username_for,
 )
+from apps.alerts.models import Follow, PushSubscription
 from apps.flights.models import Airport
 
 
@@ -101,3 +102,31 @@ class AirportFactory(factory.django.DjangoModelFactory):
     lat = 50.5
     lon = -1.5
     tz = "Europe/London"
+
+
+class FollowFactory(factory.django.DjangoModelFactory):
+    """A followed flight, waiting to take off."""
+
+    class Meta:
+        """Factory metadata."""
+
+        model = Follow
+
+    user = factory.SubFactory(UserFactory)
+    flight = "BA117"
+    not_before = factory.LazyFunction(timezone.now)
+
+
+class PushSubscriptionFactory(factory.django.DjangoModelFactory):
+    """A browser that turned notifications on (its keys are placeholders)."""
+
+    class Meta:
+        """Factory metadata."""
+
+        model = PushSubscription
+
+    user = factory.SubFactory(UserFactory)
+    endpoint = factory.Sequence(lambda n: f"https://fcm.googleapis.com/fcm/send/{n}")
+    p256dh = "BPlaceholderPublicKey"
+    auth = "placeholder-auth"
+    device = "Safari on iPhone"
