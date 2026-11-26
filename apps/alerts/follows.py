@@ -14,6 +14,7 @@ import re
 from datetime import datetime
 from typing import Any
 
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.alerts.models import Follow
@@ -40,7 +41,8 @@ def clean_number(text: str) -> str:
 def follow(user: Any, text: str, now: datetime | None = None) -> tuple[Follow, bool]:
     """Follow flight ``text`` for ``user``; return the follow and whether it's new.
 
-    Following a flight that's already followed returns that follow.
+    Following a flight that's already followed returns that follow, even when
+    two requests race: the database keeps one active follow per flight.
     """
     number = clean_number(text)
     moment = now or timezone.now()
@@ -54,7 +56,12 @@ def follow(user: Any, text: str, now: datetime | None = None) -> tuple[Follow, b
         email=bool(getattr(user, "email", "")),
     )
     prime(item)
-    item.save()
+    try:
+        with transaction.atomic():
+            item.save()
+    except IntegrityError:
+        # Another request followed it while this one looked it up.
+        return Follow.objects.for_user(user).active().get(flight=number), False
     logger.info("alerts.follow user=%s flight=%s state=%s", user.pk, number, item.state)
     return item, True
 

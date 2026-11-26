@@ -288,6 +288,24 @@ def test_a_follow_stopped_just_before_its_alert_sends_nothing(
     assert pushes == []
 
 
+def test_two_follows_racing_make_one(follower: Any, monkeypatch: Any) -> None:
+    """Another request follows the flight while this one looks it up: one follow, not two."""
+    other: list[Follow] = []
+
+    def prime(item: Follow) -> None:
+        other.append(Follow.objects.create(user=follower, flight=item.flight, not_before=FOLLOWED))
+
+    monkeypatch.setattr(follows, "prime", prime)
+    item, created = follows.follow(follower, "BA117", FOLLOWED)
+    assert created is False
+    assert item == other[0]
+    assert Follow.objects.count() == 1
+    # Once that one has ended, the flight can be followed again.
+    Follow.objects.update(ended_at=FOLLOWED)
+    monkeypatch.setattr(follows, "prime", lambda item: None)
+    assert follows.follow(follower, "BA117", FOLLOWED)[1] is True
+
+
 def test_unfollowing_deletes_the_follow(follower: Any) -> None:
     """Unfollow takes the flight off the list."""
     FollowFactory.create(user=follower)

@@ -96,6 +96,14 @@ class Follow(BaseModel):
 
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["landed_at", "ended_at", "next_check_at"])]
+        constraints = [
+            # One active follow per person and flight, so two taps never send two alerts.
+            models.UniqueConstraint(
+                fields=["user", "flight"],
+                condition=models.Q(landed_at__isnull=True, ended_at__isnull=True),
+                name="alerts_one_active_follow",
+            )
+        ]
 
     def to_string(self) -> str:
         """Return the flight and its route, such as "BA117 LHR-JFK"."""
