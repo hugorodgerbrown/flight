@@ -8,6 +8,13 @@ answer held and the credits Flightradar24 counted. ``--usage`` prints the
 account's credits for the last 24 hours. If the credits can't be read, the
 lookups still run and the credits are reported as unknown.
 
+It says what it is doing (RAS-137): a line before and after every call on
+the console (``-v 2`` adds the URL and rate-limit headers, ``-v 0`` prints
+only the report), and an INFO log line per call, WARNING on failure, which
+reach Render's logs. A failed batch is marked in the report rather than
+stopping the run; only a refused key or an empty plan stops it. The key is
+never printed or logged.
+
 Run it where FR24_API_KEY is set, such as the Render shell::
 
     python manage.py fr24_check --commit
@@ -19,6 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -40,6 +48,20 @@ RETRY_SECONDS = 30
 USER_AGENT = "Flight/1.0 (fr24_check)"
 # How far back a flight summary looks for the flight's latest leg.
 SUMMARY_WINDOW = timedelta(days=1)
+# What each endpoint is called in progress lines.
+LABELS = {
+    "/live/flight-positions/full": "live positions",
+    "/flight-summary/full": "flight summaries",
+    "/usage": "credits used",
+}
+# Response headers worth showing at -v 2: never anything that echoes the key.
+SHOWN_HEADERS = (
+    "content-type",
+    "retry-after",
+    "x-ratelimit-limit",
+    "x-ratelimit-remaining",
+    "x-ratelimit-reset",
+)
 
 # Short-haul, long-haul and codeshare numbers, mostly daily, so most are
 # found on any day. The last two are codeshares sold under one airline and
@@ -82,12 +104,38 @@ def pause(seconds: float) -> None:
     time.sleep(seconds)
 
 
-class Fr24Api:
-    """The few Flightradar24 calls the check makes, paced and counted."""
+def plural(count: int, word: str) -> str:
+    """Return "1 flight" or "2 flights"."""
+    return f"{count} {word}{'' if count == 1 else 's'}"
 
-    def __init__(self, key: str) -> None:
-        """Keep the key for the Authorization header; it is never printed or logged."""
+
+class Stop(CommandError):
+    """A failure no later call can get past (a refused key, no credits): the run stops."""
+
+
+def quiet(text: str) -> None:
+    """Print nothing; the default for an Fr24Api nobody is watching."""
+
+
+class Fr24Api:
+    """The few Flightradar24 calls the check makes: paced, counted, logged and narrated."""
+
+    def __init__(
+        self,
+        key: str,
+        say: Callable[[str], None] = quiet,
+        verbosity: int = 1,
+        planned: int = 0,
+    ) -> None:
+        """Keep the key for the Authorization header; it is never printed or logged.
+
+        ``say`` prints a progress line, ``verbosity`` is the command's, and
+        ``planned`` is how many calls the run expects, for "Call 2 of 6".
+        """
         self.key = key
+        self.say = say
+        self.verbosity = verbosity
+        self.planned = planned
         self.calls = 0
 
     def get(self, path: str, params: dict[str, str]) -> list[dict[str, Any]]:
@@ -96,20 +144,34 @@ class Fr24Api:
             return self.fetch(path, params)
         except urllib.error.HTTPError as exc:
             if exc.code != 429:
-                raise failure(path, exc) from exc
+                raise self.failed(path, exc) from exc
+            logger.warning("Flightradar24 rate-limited %s; retrying in %ss", path, RETRY_SECONDS)
+            self.tell(1, f"  Rate-limited; waiting {RETRY_SECONDS}s to try once more.")
             pause(RETRY_SECONDS)
             try:
                 return self.fetch(path, params)
             except urllib.error.HTTPError as again:
-                raise failure(path, again) from again
+                raise self.failed(path, again) from again
+
+    def failed(self, path: str, exc: urllib.error.HTTPError) -> CommandError:
+        """Log an HTTP error with Flightradar24's message and return it as a CommandError."""
+        error = failure(path, exc)
+        logger.warning("Flightradar24 call failed: %s", error)
+        return error
 
     def fetch(self, path: str, params: dict[str, str]) -> list[dict[str, Any]]:
-        """Make one paced call to ``path``; an HTTP error is left to the caller."""
+        """Make one paced, logged call to ``path``; an HTTP error is left to the caller."""
         if self.calls:
             pause(GAP_SECONDS)
         self.calls += 1
+        flights = params.get("flights", "")
+        count = f" for {plural(len(flights.split(',')), 'flight')}" if flights else ""
+        of = f" of {self.planned}" if self.planned else ""
+        self.tell(1, f"Call {self.calls}{of}: {LABELS.get(path, path)}{count}...")
+        url = f"{BASE_URL}{path}?{urllib.parse.urlencode(params)}"
+        self.tell(2, f"  GET {url}")
         request = urllib.request.Request(  # noqa: S310  # nosemgrep
-            f"{BASE_URL}{path}?{urllib.parse.urlencode(params)}",
+            url,
             headers={
                 "Authorization": f"Bearer {self.key}",
                 "Accept": "application/json",
@@ -117,22 +179,78 @@ class Fr24Api:
                 "User-Agent": USER_AGENT,
             },
         )
+        started = time.monotonic()
         try:
             with opener(request) as response:
-                answer = json.loads(response.read())
-        except urllib.error.HTTPError:
+                body = response.read()
+                status = getattr(response, "status", 200)
+                headers = getattr(response, "headers", None) or {}
+        except urllib.error.HTTPError as exc:
+            self.record(path, flights, exc.code, started, None, exc.headers or {})
             raise
-        except (OSError, ValueError) as exc:
+        except OSError as exc:
+            logger.warning("Flightradar24 %s could not be reached: %s", path, type(exc).__name__)
             raise CommandError(
                 f"Flightradar24 could not be reached: {type(exc).__name__}."
             ) from exc
+        try:
+            answer = json.loads(body)
+        except ValueError as exc:
+            logger.warning("Flightradar24 %s answered something that isn't JSON", path)
+            raise CommandError(
+                f"Flightradar24 answered {path} with something that isn't JSON."
+            ) from exc
         rows = answer.get("data") if isinstance(answer, dict) else None
-        return rows if isinstance(rows, list) else []
+        rows = rows if isinstance(rows, list) else []
+        self.record(path, flights, status, started, len(rows), headers)
+        return rows
 
-    def credits(self) -> int:
-        """Return the credits used in the last 24 hours, across every endpoint."""
-        rows = self.get("/usage", {"period": "24h"})
-        return sum(int(row.get("credits") or 0) for row in rows)
+    def record(
+        self,
+        path: str,
+        flights: str,
+        status: int,
+        started: float,
+        rows: int | None,
+        headers: Any,
+    ) -> None:
+        """Log one call and tell the console how it went."""
+        seconds = time.monotonic() - started
+        if rows is None:
+            logger.warning(
+                "Flightradar24 GET %s flights=%s answered %s in %.1fs",
+                path,
+                flights or "-",
+                status,
+                seconds,
+            )
+            self.tell(1, f"  Answered {status} in {seconds:.1f}s.")
+        else:
+            logger.info(
+                "Flightradar24 GET %s flights=%s answered %s in %.1fs with %s rows",
+                path,
+                flights or "-",
+                status,
+                seconds,
+                rows,
+            )
+            self.tell(1, f"  Answered {status} in {seconds:.1f}s with {plural(rows, 'row')}.")
+        shown = [f"{name}: {headers.get(name)}" for name in SHOWN_HEADERS if headers.get(name)]
+        if shown:
+            self.tell(2, f"  {'; '.join(shown)}")
+
+    def tell(self, level: int, text: str) -> None:
+        """Print ``text`` on the console if the verbosity is at least ``level``."""
+        if self.verbosity >= level:
+            self.say(text)
+
+    def credits(self) -> dict[str, int]:
+        """Return the credits used in the last 24 hours, by endpoint."""
+        used: dict[str, int] = {}
+        for row in self.get("/usage", {"period": "24h"}):
+            endpoint = str(row.get("endpoint") or "other")
+            used[endpoint] = used.get(endpoint, 0) + int(row.get("credits") or 0)
+        return used
 
 
 def explanation(exc: urllib.error.HTTPError) -> str:
@@ -151,9 +269,9 @@ def failure(path: str, exc: urllib.error.HTTPError) -> CommandError:
     """Return the CommandError for an HTTP error on ``path``, with the API's message."""
     said = explanation(exc)
     if exc.code == 401:
-        return CommandError(f"Flightradar24 refused the key (check FR24_API_KEY).{said}")
+        return Stop(f"Flightradar24 refused the key (check FR24_API_KEY).{said}")
     if exc.code == 402:
-        return CommandError(f"Flightradar24 says the plan has no credits left.{said}")
+        return Stop(f"Flightradar24 says the plan has no credits left.{said}")
     if exc.code == 403:
         return CommandError(f"Flightradar24 answered 403 (forbidden) for {path}.{said}")
     return CommandError(f"Flightradar24 answered {exc.code} for {path}.{said}")
@@ -183,7 +301,10 @@ def pick_summary(
 
 
 def summarise(
-    asked: str, live: dict[str, Any] | None, summary: dict[str, Any] | None
+    asked: str,
+    live: dict[str, Any] | None,
+    summary: dict[str, Any] | None,
+    failed: bool = False,
 ) -> dict[str, Any]:
     """Return what Flightradar24 told us about one flight, as the report needs it."""
     either = live or summary or {}
@@ -196,6 +317,7 @@ def summarise(
     )
     return {
         "asked": asked,
+        "failed": failed,
         "found": bool(live or summary),
         "flight": either.get("flight") or either.get("callsign") or "",
         "codeshare": bool(either) and not matches(asked, either),
@@ -226,10 +348,10 @@ class Command(BaseCommand):
     def handle(self, *args: Any, **options: Any) -> None:
         """Plan the run, and with --commit make it and print the results."""
         flights = [f.upper().replace(" ", "") for f in options["flights"]] or list(FLIGHTS)
+        verbosity = options["verbosity"]
         if options["usage"]:
-            self.stdout.write(
-                f"Credits used in the last 24 hours: {Fr24Api(self.key()).credits()}."
-            )
+            today = Fr24Api(self.key(), self.progress, verbosity).credits()
+            self.stdout.write(f"Credits used in the last 24 hours: {sum(today.values())}.")
             return
         batches = [flights[i : i + BATCH] for i in range(0, len(flights), BATCH)]
         if not options["commit"]:
@@ -239,37 +361,73 @@ class Command(BaseCommand):
                 "Dry run; pass --commit."
             )
             return
-        api = Fr24Api(self.key())
+        key = self.key()
+        planned = len(batches) * 2 + 2
+        api = Fr24Api(key, self.progress, verbosity, planned)
+        if verbosity > 0:
+            self.progress(
+                f"Looking up {plural(len(flights), 'flight')} in {planned} calls "
+                "(2 of them credit reads), "
+                f"about {round((planned - 1) * GAP_SECONDS)}s with the gaps between calls. "
+                f"FR24_API_KEY is set ({len(key)} characters)."
+            )
+        logger.info("fr24_check: %s flights in %s calls", len(flights), planned)
         before = self.credits(api)
         now = datetime.now(tz=UTC).replace(microsecond=0, tzinfo=None)
         live_rows: list[dict[str, Any]] = []
         summary_rows: list[dict[str, Any]] = []
+        failed: set[str] = set()
         for batch in batches:
             numbers = ",".join(batch)
-            live_rows += api.get("/live/flight-positions/full", {"flights": numbers})
-            summary_rows += api.get(
-                "/flight-summary/full",
-                {
-                    "flights": numbers,
-                    "flight_datetime_from": str(now - SUMMARY_WINDOW),
-                    "flight_datetime_to": str(now),
-                },
+            calls = (
+                (live_rows, "/live/flight-positions/full", {"flights": numbers}),
+                (
+                    summary_rows,
+                    "/flight-summary/full",
+                    {
+                        "flights": numbers,
+                        "flight_datetime_from": str(now - SUMMARY_WINDOW),
+                        "flight_datetime_to": str(now),
+                    },
+                ),
             )
+            for into, path, params in calls:
+                try:
+                    into += api.get(path, params)
+                except Stop:
+                    raise
+                except CommandError as exc:
+                    self.stderr.write(f"{LABELS[path].capitalize()} for {numbers} failed: {exc}")
+                    failed.update(batch)
         rows = []
         for asked in flights:
             live = next((r for r in live_rows if matches(asked, r)), None)
             summary = pick_summary(live, [r for r in summary_rows if matches(asked, r)])
-            rows.append(summarise(asked, live, summary))
-            if options["verbosity"] > 0:
+            rows.append(summarise(asked, live, summary, failed=asked in failed))
+            if verbosity > 0:
                 self.stdout.write(line(rows[-1]))
         after = self.credits(api) if before is not None else None
-        used = after - before if before is not None and after is not None else None
+        used = spent(before, after)
+        logger.info(
+            "fr24_check: found %s of %s; %s calls; credits %s",
+            sum(r["found"] for r in rows),
+            len(rows),
+            api.calls,
+            "unknown" if used is None else sum(used.values()),
+        )
         self.stdout.write(report(rows, api.calls, used))
 
-    def credits(self, api: Fr24Api) -> int | None:
+    def progress(self, text: str) -> None:
+        """Print a progress line now, so a slow run shows it is working."""
+        self.stdout.write(text)
+        self.stdout.flush()
+
+    def credits(self, api: Fr24Api) -> dict[str, int] | None:
         """Return the credits used so far, or None (with a warning) if they can't be read."""
         try:
             return api.credits()
+        except Stop:
+            raise
         except CommandError as exc:
             self.stderr.write(f"Couldn't read the credits, so they're reported as unknown: {exc}")
             return None
@@ -282,10 +440,17 @@ class Command(BaseCommand):
         return key
 
 
+def spent(before: dict[str, int] | None, after: dict[str, int] | None) -> dict[str, int] | None:
+    """Return the credits each endpoint used between two reads, or None if either failed."""
+    if before is None or after is None:
+        return None
+    return {k: after[k] - before.get(k, 0) for k in after if after[k] - before.get(k, 0)}
+
+
 def line(row: dict[str, Any]) -> str:
     """Return one lookup as a line of the progress output."""
     if not row["found"]:
-        return f"{row['asked']}: not found"
+        return f"{row['asked']}: {'lookup failed' if row['failed'] else 'not found'}"
     if row["position"]:
         p = row["position"]
         where = f"in the air at {p['lat']}, {p['lon']}, {p['alt']} ft, ETA {row['eta'] or '?'}"
@@ -294,7 +459,7 @@ def line(row: dict[str, Any]) -> str:
     return f"{row['asked']}: {row['flight']} {row['route']}, {where}"
 
 
-def report(rows: list[dict[str, Any]], calls: int, credits: int | None) -> str:
+def report(rows: list[dict[str, Any]], calls: int, credits: dict[str, int] | None) -> str:
     """Return the totals as Markdown, ready to paste into the issue."""
     lines = [
         "| Asked | Found as | Route | In the air | Position | ETA | Took off | Landed |",
@@ -302,7 +467,8 @@ def report(rows: list[dict[str, Any]], calls: int, credits: int | None) -> str:
     ]
     for r in rows:
         if not r["found"]:
-            lines.append(f"| {r['asked']} | not found | | | | | | |")
+            missing = "lookup failed" if r["failed"] else "not found"
+            lines.append(f"| {r['asked']} | {missing} | | | | | | |")
             continue
         found_as = f"{r['flight']}{' (codeshare)' if r['codeshare'] else ''}"
         lines.append(
@@ -310,15 +476,21 @@ def report(rows: list[dict[str, Any]], calls: int, credits: int | None) -> str:
             f"| {'yes' if r['position'] else ''} | {r['eta']} | {r['took_off']} | {r['landed']} |"
         )
     found = [r for r in rows if r["found"]]
+    failed = [r for r in rows if r["failed"] and not r["found"]]
+    by_endpoint = ", ".join(f"{k} {v}" for k, v in sorted((credits or {}).items()))
     lines += [
         "",
         f"- Found {len(found)} of {len(rows)}; {sum(r['airborne'] for r in found)} in the air "
         "with a live position.",
         f"- Calls: {calls} (including usage reads). "
         + (
-            f"Credits used: {credits}, by Flightradar24's count for the last 24 hours."
+            f"Credits used: {sum(credits.values())}"
+            + (f" ({by_endpoint})" if by_endpoint else "")
+            + ", by Flightradar24's count for the last 24 hours."
             if credits is not None
             else "Credits used: unknown (the usage read failed)."
         ),
     ]
+    if failed:
+        lines.append(f"- Lookups that failed: {len(failed)} (see the errors above).")
     return "\n".join(lines)
