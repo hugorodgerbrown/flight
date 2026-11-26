@@ -18,6 +18,7 @@ from django.urls import reverse
 
 from apps.core.analytics import SCRIPT, counts_mcp
 from apps.public.connector import mcp_url
+from apps.public.context_processors import site_facts
 from apps.pwa.context_processors import identity
 
 
@@ -51,6 +52,7 @@ def page_as_markdown(name: str) -> dict[str, str]:
         },
         "mcp_url": mcp_url(),
         "keeps_email": settings.ACCOUNTS_KEEP_EMAIL,
+        "site": site_facts(),
     }
     html = render_to_string(page.template, context)
     return {
