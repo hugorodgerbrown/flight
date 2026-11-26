@@ -160,6 +160,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.pwa.context_processors.pwa",
                 "apps.core.analytics.analytics",
+                "apps.public.context_processors.site",
             ],
         },
     },

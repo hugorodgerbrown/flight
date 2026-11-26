@@ -24,10 +24,16 @@ class Tool:
     """One MCP tool: its name, description, input schema and implementation."""
 
     name: str
+    # A short human name, which clients show in place of ``name`` and which
+    # Claude's connector directory requires of every tool.
+    title: str
     description: str
     input_schema: dict[str, Any]
     func: Callable[[Any, dict[str, Any]], dict[str, Any]]
     read_only: bool = True
+    # True for a tool that reaches outside this app (where_is asks
+    # Flightradar24); false for one that answers from the app alone.
+    open_world: bool = False
     # The result's "markdown" is the text content, so the caller gets the
     # document itself rather than JSON around it.
     markdown: bool = False
@@ -39,9 +45,16 @@ class Tool:
         """Return the tool as tools/list lists it."""
         described: dict[str, Any] = {
             "name": self.name,
+            "title": self.title,
             "description": self.description,
             "inputSchema": self.input_schema,
-            "annotations": {"readOnlyHint": self.read_only},
+            "annotations": {
+                "title": self.title,
+                "readOnlyHint": self.read_only,
+                # No tool deletes or overwrites anything (MCP's default is true).
+                "destructiveHint": False,
+                "openWorldHint": self.open_world,
+            },
         }
         if self.ui:
             # "ui/resourceUri" is the spec's older flat key, kept until every
@@ -187,6 +200,7 @@ TOOLS: dict[str, Tool] = {
     for t in [
         Tool(
             name="where_is",
+            title="Where is a flight",
             description=(
                 "Where a flight is now, from Flightradar24's live data: in the air (route, "
                 "position, altitude, progress and ETA), landed, or not found, shown on a map. "
@@ -198,11 +212,13 @@ TOOLS: dict[str, Tool] = {
                 "required": ["flight"],
             },
             func=where_is,
+            open_world=True,
             markdown=True,
             ui="ui://flight/map-v6",
         ),
         Tool(
             name="privacy_policy",
+            title="Privacy notice",
             description=(
                 "The privacy notice: what is kept about the user, why, and for how long. "
                 "Use it for any question about privacy or personal data."
@@ -213,6 +229,7 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             name="terms_of_service",
+            title="Terms of service",
             description="The terms of service for using the app.",
             input_schema=NO_ARGUMENTS,
             func=terms_of_service,
@@ -220,6 +237,7 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             name="help",
+            title="Help",
             description=(
                 "How to use the app: signing in, passkeys, installing it and using it offline."
             ),
