@@ -126,7 +126,7 @@ class PushSubscriptionFactory(factory.django.DjangoModelFactory):
         model = PushSubscription
 
     user = factory.SubFactory(UserFactory)
-    endpoint = factory.Sequence(lambda n: f"https://push.example.test/send/{n}")
+    endpoint = factory.Sequence(lambda n: f"https://fcm.googleapis.com/fcm/send/{n}")
     p256dh = "BPlaceholderPublicKey"
     auth = "placeholder-auth"
     device = "Safari on iPhone"

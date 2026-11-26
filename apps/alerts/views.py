@@ -130,7 +130,7 @@ def push_subscribe(request: HttpRequest) -> JsonResponse:
     if not isinstance(keys, dict):
         keys = {}
     p256dh, auth = str(keys.get("p256dh") or ""), str(keys.get("auth") or "")
-    if not endpoint.startswith("https://") or not p256dh or not auth or len(endpoint) > 1000:
+    if not push.known_endpoint(endpoint) or not p256dh or not auth or len(endpoint) > 1000:
         return JsonResponse({"error": "bad_subscription"}, status=400)
     user = signed_in_user(request)
     if not isinstance(user, User):

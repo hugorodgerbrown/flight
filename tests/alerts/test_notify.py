@@ -134,6 +134,16 @@ def test_a_browser_the_push_service_says_is_gone_is_deleted(
     assert PushSubscription.objects.exists() is kept
 
 
+def test_a_stored_subscription_off_the_push_services_is_never_called(
+    airborne: Any, pushes: list[Any]
+) -> None:
+    """One saved before endpoints were checked is deleted, not sent to."""
+    PushSubscriptionFactory.create(user=airborne.user, endpoint="https://10.0.0.5/hook")
+    assert push.send_to_user(airborne.user, notify.message(airborne, "take_off")) == 0
+    assert pushes == []
+    assert not PushSubscription.objects.exists()
+
+
 def test_an_unexpected_push_failure_is_logged_not_raised(
     airborne: Any, pushes: list[Any], monkeypatch: Any
 ) -> None:

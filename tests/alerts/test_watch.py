@@ -221,6 +221,73 @@ def test_a_follow_with_no_eta_is_checked_every_run(fr24: dict[str, Any], followe
     assert watch.next_check(item, now) == now + watch.CRUISE_CHECK
 
 
+def changed_mid_run(monkeypatch: Any, change: Any) -> None:
+    """Make ``change`` happen while the watcher is asking Flightradar24, as a person might."""
+    asked = watch.summaries
+
+    def summaries(*args: Any) -> list[dict[str, Any]]:
+        rows = asked(*args)
+        change()
+        return rows
+
+    monkeypatch.setattr(watch, "summaries", summaries)
+
+
+def test_a_channel_turned_off_mid_run_stays_off_and_isnt_used(
+    fr24: dict[str, Any], pushes: list[dict[str, Any]], follower: Any, monkeypatch: Any
+) -> None:
+    """The watcher writes only its own fields, and reads the channels again before sending."""
+    item = FollowFactory.create(user=follower, not_before=FOLLOWED)
+    fr24["summaries"] = [SUMMARY_BA117]
+    changed_mid_run(
+        monkeypatch, lambda: Follow.objects.filter(pk=item.pk).update(push=False, email=False)
+    )
+    with freeze_time("2026-11-26T08:40:00Z"):
+        run = watch.watch(api())
+    assert [event for _, event in run.events] == [watch.TAKE_OFF]
+    item.refresh_from_db()
+    assert (item.push, item.email) == (False, False)
+    assert item.took_off_sent_at is not None
+    assert mail.outbox == []
+    assert pushes == []
+
+
+def test_a_follow_stopped_mid_run_stays_stopped_and_sends_nothing(
+    fr24: dict[str, Any], pushes: list[dict[str, Any]], follower: Any, monkeypatch: Any
+) -> None:
+    """Stop pressed while the watcher works: the follow isn't saved back, and no alert goes."""
+    item = FollowFactory.create(user=follower, not_before=FOLLOWED)
+    fr24["summaries"] = [SUMMARY_BA117]
+    changed_mid_run(monkeypatch, lambda: Follow.objects.filter(pk=item.pk).delete())
+    with freeze_time("2026-11-26T08:40:00Z"):
+        watch.watch(api())
+    assert not Follow.objects.exists()
+    assert mail.outbox == []
+    assert pushes == []
+
+
+def test_a_follow_stopped_just_before_its_alert_sends_nothing(
+    fr24: dict[str, Any], pushes: list[dict[str, Any]], follower: Any, monkeypatch: Any
+) -> None:
+    """Deleted after the watcher saved it but before the alert: still nothing goes."""
+    item = FollowFactory.create(user=follower, not_before=FOLLOWED)
+    fr24["summaries"] = [SUMMARY_BA117]
+    saved = watch.save
+
+    def save(follow: Follow, now: datetime) -> bool:
+        kept = saved(follow, now)
+        Follow.objects.filter(pk=item.pk).delete()
+        return kept
+
+    monkeypatch.setattr(watch, "save", save)
+    said: list[str] = []
+    with freeze_time("2026-11-26T08:40:00Z"):
+        watch.watch(api(), say=said.append)
+    assert said[-1] == "BA117 LHR-JFK: stopped while checking, no alert"
+    assert mail.outbox == []
+    assert pushes == []
+
+
 def test_unfollowing_deletes_the_follow(follower: Any) -> None:
     """Unfollow takes the flight off the list."""
     FollowFactory.create(user=follower)

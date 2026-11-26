@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.utils import timezone
@@ -24,6 +25,30 @@ logger = logging.getLogger(__name__)
 # How long a push service keeps trying to deliver an alert: after an hour it's old news.
 TTL_SECONDS = 3600
 GONE = {404, 410}
+# The push services browsers subscribe with: Chrome, Edge, Firefox and Safari. A
+# leading dot means any host under that domain (Windows gives each region its own).
+PUSH_HOSTS = (
+    "fcm.googleapis.com",
+    "android.googleapis.com",
+    "updates.push.services.mozilla.com",
+    ".push.apple.com",
+    ".notify.windows.com",
+)
+
+
+def known_endpoint(endpoint: str) -> bool:
+    """True when ``endpoint`` is an https URL on a known push service, on its default port."""
+    try:
+        parts = urlsplit(endpoint)
+        port = parts.port
+    except ValueError:
+        return False
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https" or port not in (None, 443) or parts.username or parts.password:
+        return False
+    return any(
+        host.endswith(known) if known.startswith(".") else host == known for known in PUSH_HOSTS
+    )
 
 
 def enabled() -> bool:
@@ -45,6 +70,12 @@ def send_to_user(user: Any, words: dict[str, str]) -> int:
 
 def send(subscription: PushSubscription, data: str) -> bool:
     """Push ``data`` to one browser; return whether the push service took it."""
+    if not known_endpoint(subscription.endpoint):
+        logger.warning(
+            "alerts.push %s isn't a known push service: deleted", subscription.to_string()
+        )
+        subscription.delete()
+        return False
     try:
         webpush(
             subscription_info=subscription.as_info(),

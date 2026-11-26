@@ -10,7 +10,10 @@ flight summaries (up to 15 flights a call), and for each follow:
   the live feed once for its ETA, so the alert can say when it lands;
 - sends the landing alert when its landing time appears.
 
-Each alert is recorded as sent, so a re-run never sends it twice. A follow
+Each alert is recorded as sent, so a re-run never sends it twice. The run
+writes back only the fields it owns (``WATCHED``), and only to follows that
+still exist, so a channel turned off or a Stop pressed while it was asking
+Flightradar24 holds; each alert reads the channels afresh before it goes. A follow
 gives up after 24 hours without a take-off, or 20 hours in the air without
 a landing. Checks thin out mid-flight: every 10 minutes while the ETA is
 more than half an hour away, then every run.
@@ -41,6 +44,20 @@ CRUISE_CHECK = timedelta(minutes=10)
 NEAR_ETA = timedelta(minutes=30)
 # How far before a follow's not_before its leg's summary may start (first seen before take-off).
 WINDOW_SLACK = timedelta(hours=2)
+
+# The fields the watcher sets. Everything else (the channels) is the person's.
+WATCHED = (
+    "fr24_id",
+    "origin",
+    "destination",
+    "aircraft",
+    "took_off_at",
+    "arrives_at",
+    "landed_at",
+    "took_off_sent_at",
+    "ended_at",
+    "next_check_at",
+)
 
 TAKE_OFF = "take_off"
 LANDING = "landing"
@@ -88,13 +105,26 @@ def watch(
     run.calls = api.calls
     if not commit:
         return run
-    for item in run.ended:
-        item.save()
-    for item in live:
-        item.save()
+    gone = {item.pk for item in [*run.ended, *live] if not save(item, moment)}
     for item, event in run.events:
+        if item.pk in gone:
+            continue
+        fresh = Follow.objects.filter(pk=item.pk).values("push", "email").first()
+        if fresh is None:
+            say(f"{item.to_string()}: stopped while checking, no alert")
+            continue
+        item.push, item.email = fresh["push"], fresh["email"]
         notify.send(item, event, moment)
     return run
+
+
+def save(item: Follow, now: datetime) -> bool:
+    """Write the watcher's fields of ``item`` to its row; False if the row has been deleted."""
+    fields = {name: getattr(item, name) for name in WATCHED}
+    updated = Follow.objects.filter(pk=item.pk).update(**fields, updated_at=now)
+    if not updated:
+        logger.info("alerts.watch %s was stopped mid-run: not saved", item.to_string())
+    return bool(updated)
 
 
 def give_up(item: Follow, now: datetime) -> bool:

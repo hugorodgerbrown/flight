@@ -133,11 +133,9 @@ def send(item: Follow, event: str, now: datetime | None = None) -> None:
             logger.exception("alerts.email failed for %s %s", item.to_string(), event)
     if item.push:
         push.send_to_user(item.user, words)
-    if event == "take_off":
-        item.took_off_sent_at = moment
-    else:
-        item.landed_sent_at = moment
-    item.save(update_fields=["took_off_sent_at", "landed_sent_at", "updated_at"])
+    sent = "took_off_sent_at" if event == "take_off" else "landed_sent_at"
+    setattr(item, sent, moment)
+    Follow.objects.filter(pk=item.pk).update(**{sent: moment, "updated_at": moment})
     logger.info("alerts.sent %s %s", item.to_string(), event)
 
 

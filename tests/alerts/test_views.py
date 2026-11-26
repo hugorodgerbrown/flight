@@ -184,7 +184,7 @@ def post_json(client: Client, name: str, body: Any) -> Any:
 def test_a_browser_subscribes_and_unsubscribes(signed_in: Client, user: Any) -> None:
     """The subscription is saved once (a repeat updates it) and deleted on turning off."""
     body = {
-        "endpoint": "https://push.example.test/abc",
+        "endpoint": "https://web.push.apple.com/QGuQyavXutnMH",
         "keys": {"p256dh": "key", "auth": "secret"},
     }
     agent = (
@@ -212,9 +212,9 @@ def test_a_browser_subscribes_and_unsubscribes(signed_in: Client, user: Any) -> 
 @pytest.mark.parametrize(
     "body",
     [
-        {"endpoint": "http://push.example.test/abc", "keys": {"p256dh": "k", "auth": "a"}},
-        {"endpoint": "https://push.example.test/abc", "keys": "nope"},
-        {"endpoint": "https://push.example.test/abc"},
+        {"endpoint": "http://fcm.googleapis.com/fcm/send/a", "keys": {"p256dh": "k", "auth": "a"}},
+        {"endpoint": "https://fcm.googleapis.com/fcm/send/a", "keys": "nope"},
+        {"endpoint": "https://fcm.googleapis.com/fcm/send/a"},
         ["not", "an", "object"],
     ],
 )
@@ -222,6 +222,47 @@ def test_a_bad_subscription_is_refused(signed_in: Client, body: Any) -> None:
     """Only an https endpoint with both keys is kept."""
     assert post_json(signed_in, "alerts:push_subscribe", body).status_code == 400
     assert not PushSubscription.objects.exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://push.example.test/abc",
+        "https://internal.service.local/admin",
+        "https://169.254.169.254/latest/meta-data",
+        "https://fcm.googleapis.com.evil.test/fcm/send/a",
+        "https://evilpush.apple.com.test/a",
+        "https://fcm.googleapis.com:8443/fcm/send/a",
+        "https://user@fcm.googleapis.com/fcm/send/a",
+        "https://[::1/a",
+    ],
+)
+def test_a_subscription_off_the_known_push_services_is_refused(
+    signed_in: Client, endpoint: str
+) -> None:
+    """The server only ever calls a real push service, never an address a browser made up."""
+    body = {"endpoint": endpoint, "keys": {"p256dh": "k", "auth": "a"}}
+    assert post_json(signed_in, "alerts:push_subscribe", body).status_code == 400
+    assert not PushSubscription.objects.exists()
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://fcm.googleapis.com/fcm/send/a",
+        "https://android.googleapis.com/gcm/send/a",
+        "https://updates.push.services.mozilla.com/wpush/v2/a",
+        "https://web.push.apple.com/QGuQ",
+        "https://wns2-par02p.notify.windows.com/w/?token=a",
+        "https://FCM.googleapis.com:443/fcm/send/a",
+    ],
+)
+def test_the_browsers_push_services_are_known(endpoint: str) -> None:
+    """Chrome, Firefox, Safari and Edge's push services all pass."""
+    from apps.alerts import push
+
+    assert push.known_endpoint(endpoint)
 
 
 @pytest.mark.django_db
