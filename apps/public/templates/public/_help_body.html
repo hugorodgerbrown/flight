@@ -4,6 +4,10 @@
 <p>Once {{ pwa.name }} is added to Claude (below), ask about a flight by its number, such as "Where is BA117?" or "When does EZY8461 land?". Claude answers in words and with a map card: the airport it left, the way it has flown, where it is now, the way still to go and when it's due. Long-haul flights are drawn on a globe.</p>
 <p>{{ pwa.name }} uses live data from Flightradar24, which knows a flight by the number of the airline flying it. If a codeshare number isn't found, ask with the operating airline's number: it's on your booking or the departures board. Flightradar24 has no airline schedules, so {{ pwa.name }} shows when a flight is due, not whether it's late.</p>
 <p>Looking up a flight saves nothing about you.</p>
+<h2>Take-off and landing alerts</h2>
+<p>Follow a flight and {{ pwa.name }} tells you when it takes off and when it lands. Sign in, open the app and type the flight number under Follow a flight, or ask Claude to "follow BA117". {{ pwa.name }} follows the next flight with that number to take off, or the one in the air now.</p>
+<p>Alerts come by push notification, by email, or both: turn either off for each flight on the Following list. To get push notifications, tap Turn on and allow notifications. On an iPhone or iPad, add {{ pwa.name }} to your Home Screen first and turn them on from there: Safari only sends notifications to apps on the Home Screen. Every alert email has a link that stops alerts for that flight.</p>
+<p>An alert usually arrives within a few minutes of Flightradar24 seeing the take-off or landing. A flight that doesn't take off within a day is dropped, and a landed flight leaves the list the next day.</p>
 <h2>Signing in</h2>
 <p>There are no passwords. Enter your email address on the <a href="{% url 'accounts:sign_in' %}">sign-in page</a> and we'll send you a one-time six-digit code, with a link that signs you in with it. Use either within 15 minutes. The first time you sign in, this creates your account.</p>
 <p>If you've installed the app on an iPhone or iPad, type the code into the app rather than opening the link: the link signs in Safari, not the app.</p>

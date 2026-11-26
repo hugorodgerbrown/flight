@@ -1,0 +1,21 @@
+{% comment %}Turning notifications on for this browser (static/js/alerts.js shows it).
+  On the home page (push_place "home") it is a banner shown only while push is
+  off or needs the Home Screen; on the account page it shows every state.
+  Without JavaScript, or without the VAPID key, nothing shows.{% endcomment %}
+{% if push_key %}
+  <div class="push{% if push_place == 'home' %} push--banner{% endif %}" data-push
+       data-push-key="{{ push_key }}"
+       data-subscribe-url="{% url 'alerts:push_subscribe' %}"
+       data-unsubscribe-url="{% url 'alerts:push_unsubscribe' %}"
+       data-push-shown-in="{% if push_place == 'home' %}off install{% else %}off on blocked install unsupported{% endif %}"
+       hidden>
+    <p class="push__text" data-push-when="off">Turn on notifications on this {{ push_device|default:"device" }} to get alerts here.</p>
+    <p class="push__text" data-push-when="on">Notifications are on for this device.</p>
+    <p class="push__text" data-push-when="blocked">Notifications are blocked for {{ pwa.name }} in this browser's settings. Allow them there to get alerts here.</p>
+    <p class="push__text" data-push-when="install">To get notifications on an iPhone or iPad, add {{ pwa.name }} to your Home Screen (Share, then Add to Home Screen), and open it from there.</p>
+    <p class="push__text" data-push-when="unsupported">This browser can't show notifications. Email alerts still work.</p>
+    <button class="button" type="button" data-push-on data-push-when="off">Turn on</button>
+    <button class="button button--secondary" type="button" data-push-off data-push-when="on">Turn off</button>
+    <p class="form-error" data-push-error role="alert" hidden></p>
+  </div>
+{% endif %}

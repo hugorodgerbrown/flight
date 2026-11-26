@@ -28,6 +28,10 @@ apps/pwa/        /app/manifest.webmanifest, /app/sw.js, /app/offline/;
 apps/flights/    the Flightradar24 client (fr24.py), Airport, the live
                  lookup behind where_is (lookup.py), and the app's home
                  at /app/ (views.home)
+apps/alerts/     following flights (Follow, PushSubscription): the Following
+                 list on the app home, the watcher (watch.py, run by the
+                 watch_flights cron every 2 minutes) and the take-off and
+                 landing alerts by email and Web Push (notify.py, push.py)
 apps/design/     the design page (/app/design/, staff only): every token
                  and every component state (DESIGN.md)
 apps/mcp/        the MCP endpoint (/mcp) and its tools; auth is mcp-auth.

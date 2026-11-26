@@ -11,8 +11,16 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from django.conf import settings
+from django.urls import reverse
+
+from apps.alerts import follows
+from apps.alerts.models import Follow
+from apps.alerts.templatetags.alerts import route as route_of
+from apps.alerts.templatetags.alerts import status_label, times
 from apps.flights import lookup
 from apps.public.pages import page_as_markdown
+from apps.pwa import conf
 
 
 class ToolError(Exception):
@@ -165,6 +173,87 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _channels(item: Follow, user: Any) -> str:
+    """Return how a follow's alerts are sent, in words: "push and email"."""
+    ways = [w for w, on in (("push", item.push), ("email", item.email and user.email)) if on]
+    return " and ".join(ways) or "no channel (both are off)"
+
+
+def _describe(item: Follow) -> str:
+    """Return one followed flight in words, as the Following list shows it."""
+    route = f", {route_of(item)}" if item.origin else ""
+    return f"{item.flight}{route}: {status_label(item).lower()}. {times(item)}"
+
+
+def follow(user: Any, args: dict[str, Any]) -> dict[str, Any]:
+    """Follow a flight for the user, for its take-off and landing alerts (RAS-144)."""
+    try:
+        item, created = follows.follow(user, str(args.get("flight", "")))
+    except follows.NotAFlightNumber:
+        raise ToolError("flight must be a flight number such as BA1234.") from None
+    channels = _channels(item, user)
+    if item.state == "airborne":
+        text = (
+            f"{item.flight} is already in the air, so {pwa_name()} will tell the user by "
+            f"{channels} when it lands."
+        )
+    else:
+        text = (
+            f"{pwa_name()} will tell the user by {channels} when {item.flight} next takes off "
+            "and when it lands."
+        )
+    if not created:
+        text = f"The user already follows {item.flight}. " + text
+    if item.push and not user.push_subscriptions.exists():
+        text += (
+            " No device has push notifications turned on yet: the user can turn them on in "
+            f"the {pwa_name()} app ({_app_url()})."
+        )
+    if not user.email:
+        text += " Email alerts need the user to sign out and in again once."
+    return {"markdown": text, "flight": item.flight, "state": item.state, "created": created}
+
+
+def unfollow(user: Any, args: dict[str, Any]) -> dict[str, Any]:
+    """Stop following a flight: no more alerts for it."""
+    try:
+        deleted = follows.unfollow(user, str(args.get("flight", "")))
+    except follows.NotAFlightNumber:
+        raise ToolError("flight must be a flight number such as BA1234.") from None
+    number = re.sub(r"\s+", "", str(args.get("flight", ""))).upper()
+    text = (
+        f"Stopped following {number}: no more alerts for it."
+        if deleted
+        else f"The user wasn't following {number}."
+    )
+    return {"markdown": text, "stopped": bool(deleted)}
+
+
+def following(user: Any, args: dict[str, Any]) -> dict[str, Any]:
+    """List the flights the user follows, with each one's state."""
+    items = list(Follow.objects.for_user(user).shown())
+    if not items:
+        return {
+            "markdown": "The user isn't following any flights. Use follow to start.",
+            "flights": [],
+        }
+    lines = [f"- {_describe(item)} Alerts by {_channels(item, user)}." for item in items]
+    return {
+        "markdown": "Flights the user follows:\n\n" + "\n".join(lines),
+        "flights": [{"flight": i.flight, "state": i.state} for i in items],
+    }
+
+
+def pwa_name() -> str:
+    """Return the app's name."""
+    return conf.APP_NAME
+
+
+def _app_url() -> str:
+    """Return the app home's public address."""
+    return f"{settings.SITE_URL}{reverse('flights:home')}"
+
+
 def privacy_policy(user: Any, args: dict[str, Any]) -> dict[str, str]:
     """Return the privacy notice: what is kept about the user, and why."""
     return page_as_markdown("privacy")
@@ -200,6 +289,45 @@ TOOLS: dict[str, Tool] = {
             func=where_is,
             markdown=True,
             ui="ui://flight/map-v6",
+        ),
+        Tool(
+            name="follow",
+            description=(
+                "Follow a flight for the signed-in user: Flight sends them an alert by push "
+                "notification and/or email when it next takes off and when it lands (or only "
+                "when it lands, if it's in the air now). Give the operating airline's flight "
+                "number, such as BA1234."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {"flight": {"type": "string", "maxLength": 10}},
+                "required": ["flight"],
+            },
+            func=follow,
+            read_only=False,
+            markdown=True,
+        ),
+        Tool(
+            name="unfollow",
+            description="Stop following a flight: no more take-off or landing alerts for it.",
+            input_schema={
+                "type": "object",
+                "properties": {"flight": {"type": "string", "maxLength": 10}},
+                "required": ["flight"],
+            },
+            func=unfollow,
+            read_only=False,
+            markdown=True,
+        ),
+        Tool(
+            name="following",
+            description=(
+                "The flights the signed-in user follows for alerts, each waiting to take off, "
+                "in the air (with take-off and arrival times) or landed."
+            ),
+            input_schema=NO_ARGUMENTS,
+            func=following,
+            markdown=True,
         ),
         Tool(
             name="privacy_policy",

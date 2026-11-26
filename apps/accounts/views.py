@@ -239,10 +239,13 @@ def passkey_sign_in(request: HttpRequest) -> JsonResponse:
 def account(request: HttpRequest) -> HttpResponse:
     """Who the user is signed in as (the masked address), and their passkeys."""
     user = signed_in_user(request)
+    from apps.alerts.views import account_context
+
     return render(
         request,
         "accounts/account.html",
-        {"passkeys": Passkey.objects.for_user(user), "signed_in_as": str(user)},
+        {"passkeys": Passkey.objects.for_user(user), "signed_in_as": str(user)}
+        | account_context(request),
     )
 
 

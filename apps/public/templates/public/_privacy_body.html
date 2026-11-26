@@ -6,14 +6,15 @@
 <h2>What we keep</h2>
 <ul>
 {% if keeps_email %}
-  <li><strong>Your email address</strong>, to identify your account and to email you.</li>
+  <li><strong>Your email address</strong>, to identify your account and to email you the take-off and landing alerts you ask for.</li>
 {% else %}
   <li><strong>A key made from your email address</strong>: a one-way code that finds your account each time you sign in. Your address itself is never stored: it is used to send the sign-in email, then discarded.</li>
 {% endif %}
   <li><strong>A masked address</strong>: the first letter and the domain, such as h•••@example.com, so you can see which account you're signed in to.</li>
   <li><strong>Sign-in requests</strong>: {% if keeps_email %}the address{% else %}the key and the masked address{% endif %}, when you asked to sign in, and whether you did. Deleted once they expire.</li>
   <li><strong>Passkeys</strong>: a public key for each one you add, its name, and when it was last used. Your device keeps the private key; we never see it, or your face or fingerprint.</li>
-  <li><strong>What you write</strong> in the app.</li>
+  <li><strong>The flights you follow</strong>: each flight number, whether you want its alerts by push or email, and when it took off and landed. Each is deleted a day after the flight lands, or when you stop following it.</li>
+  <li><strong>Push subscriptions</strong>: for each browser you turn notifications on in, the address its push service gave it and the keys that encrypt alerts to it, with the browser's name (such as Safari on iPhone). Deleted when you turn notifications off or the push service says the browser has gone.</li>
 </ul>
 <h2>On your device</h2>
 <p>The app stores pages you've opened and anything you write while offline, so it works without a connection. Signing out removes the saved pages.</p>
@@ -24,7 +25,7 @@
 <p>We count visits with <strong>fivebar</strong>, which sets no cookies. For each page you open it receives the page, the page you came from, your browser, device type and country, and when you create an account. It keeps daily totals only, which can't be traced back to you; your IP address and browser details tell visitors apart for one day and are not kept. Addresses that hold a sign-in link or a record are counted without it.{% if analytics.counts_mcp %} When an app you've connected, such as Claude, uses one of our tools, fivebar receives the tool's name, the app's name and a code that tells accounts apart without identifying yours; never what you asked or what came back.{% endif %} See <a href="https://fiveb.ar/privacy">fivebar's privacy policy</a>.</p>
 {% endif %}
 <h2>Who else sees it</h2>
-<p>Our hosting and email providers{% if analytics.domain %}, and fivebar for visitor counts,{% endif %} process data on our behalf. We don't sell it or share it with anyone else.</p>
+<p>Our hosting and email providers{% if analytics.domain %}, fivebar for visitor counts,{% endif %} and your browser's push service (Apple, Google or Mozilla, which carries each alert to your device encrypted, so it can't read it) process data on our behalf. We don't sell it or share it with anyone else.</p>
 <h2>Your rights</h2>
 <p>You can delete your account and everything in it yourself, at any time, from the account page: sign in, open Account, and choose <strong>Delete my account</strong>. It happens straight away{% if analytics.domain %}; fivebar's daily totals, which can't be traced back to you, stay{% endif %}.</p>
 <p>We keep no backups, so a deleted account can't be brought back, by you or by us.</p>

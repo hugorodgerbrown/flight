@@ -134,6 +134,8 @@ def look_up(api: Fr24Api, number: str, now: datetime) -> dict[str, Any] | None:
     took_off = when((summary or {}).get("datetime_takeoff"))
     flight: dict[str, Any] = {
         "flight": number,
+        # Flightradar24's id for this leg, empty when it gave none.
+        "fr24_id": str(either.get("fr24_id") or ""),
         "operated_as": str(either.get("flight") or either.get("callsign") or number),
         "callsign": str(either.get("callsign") or ""),
         "aircraft": str((live or summary or {}).get("type") or ""),
@@ -149,7 +151,7 @@ def look_up(api: Fr24Api, number: str, now: datetime) -> dict[str, Any] | None:
     }
     # The path flown, from the leg's track (RAS-142): one call, for a flight
     # in the air or landed.
-    fr24_id = str(either.get("fr24_id") or "")
+    fr24_id = flight["fr24_id"]
     track = api.track(fr24_id) if fr24_id else []
     flight["path"] = thin(track)
     if live is not None:

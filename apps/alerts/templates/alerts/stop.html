@@ -1,0 +1,11 @@
+{% extends "public_base.html" %}
+{% block title %}Stop alerts for {{ item.flight }} · {{ pwa.name }}{% endblock %}
+{% block content %}
+  <section class="card stack">
+    <h1>Stop alerts for {{ item.flight }}?</h1>
+    <p>You'll get no more take-off or landing alerts for this flight, by email or push. Other flights you follow aren't affected.</p>
+    <form method="post" action="{% url 'alerts:stop' token %}">
+      <button class="button" type="submit">Stop alerts for {{ item.flight }}</button>
+    </form>
+  </section>
+{% endblock %}
