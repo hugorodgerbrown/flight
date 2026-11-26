@@ -25,6 +25,8 @@ apps/public/     the public pages: /, /terms/, /privacy/, /help/ (placeholders);
 apps/pwa/        /app/manifest.webmanifest, /app/sw.js, /app/offline/;
                  conf.py holds the app's identity, SCOPE and the precache list
 apps/notes/      the example offline-capable feature, at /app/; replace it
+apps/flights/    the Flightradar24 client (fr24.py), Airport, and the live
+                 lookup behind where_is (lookup.py)
 apps/design/     the design page (/app/design/, staff only): every token
                  and every component state (DESIGN.md)
 apps/mcp/        the MCP endpoint (/mcp) and its tools; auth is mcp-auth.

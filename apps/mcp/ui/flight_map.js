@@ -136,25 +136,47 @@
     return [hours ? `${hours} h` : '', mins ? `${mins} m` : ''].filter(Boolean).join(' ') || '0 m';
   }
 
+  // What the card says for each status: the pill, its tone and the sentence.
+  const STATUS = {
+    airborne: { pill: 'In the air', tone: 'ok' },
+    landed: { pill: 'Landed', tone: 'muted' },
+    lost: { pill: 'No live position', tone: 'muted' },
+  };
+
+  function sentence(flight) {
+    const to = flight.destination.name;
+    if (flight.status === 'landed') return `${flight.flight} landed at ${to}.`;
+    if (flight.status !== 'airborne') return `${flight.flight} has no live position right now.`;
+    if (flight.minutes_to_go === null || flight.minutes_to_go === undefined) {
+      return `${flight.flight} is on its way to ${to}.`;
+    }
+    return `${flight.flight} lands at ${to} in ${duration(Math.max(0, Number(flight.minutes_to_go) || 0))}.`;
+  }
+
+  function arrival(flight) {
+    if (flight.status === 'landed') return flight.arrives_local ? `Landed ${flight.arrives_local}` : 'Landed';
+    if (flight.status !== 'airborne') return '';
+    return flight.arrives_local ? `Due ${flight.arrives_local}` : 'No ETA yet';
+  }
+
   function fill(flight) {
     const q = (name) => document.querySelector(`[data-${name}]`);
-    const left = Math.max(0, Number(flight.minutes_to_go) || 0);
-    q('summary').textContent = `${flight.flight} lands at ${flight.destination.name} in ${duration(left)}.`;
+    const status = STATUS[flight.status] || STATUS.lost;
+    q('summary').textContent = sentence(flight);
     q('route').textContent = `${flight.origin.code} → ${flight.destination.code}`;
-    const late = Number(flight.delay_minutes) || 0;
     const pill = q('pill');
-    pill.textContent = late > 0 ? `${late} min late` : 'On time';
-    pill.dataset.tone = late > 0 ? 'late' : 'ok';
+    const height = flight.status === 'airborne' && flight.altitude_ft ? ` · ${Number(flight.altitude_ft).toLocaleString('en-GB')} ft` : '';
+    pill.textContent = `${status.pill}${height}`;
+    pill.dataset.tone = status.tone;
     q('progress').style.width = `${Math.round(Math.max(0, Math.min(1, Number(flight.progress) || 0)) * 100)}%`;
-    q('departed').textContent = `Left ${flight.departed_local}`;
-    q('arrives').textContent = `Lands ${flight.arrives_local}`;
-    const note = q('note');
-    note.textContent = flight.sample ? 'Sample data: Flight is not connected to live flights yet.' : '';
-    note.hidden = !flight.sample;
+    q('departed').textContent = flight.departed_local ? `Took off ${flight.departed_local}` : '';
+    q('arrives').textContent = arrival(flight);
+    q('note').textContent = 'Live from Flightradar24, which has no airline schedule, so no delays.';
+    q('note').hidden = false;
     draw(q('map'), flight);
   }
 
-  self.FlightMap = { project, greatCircle, frame, duration, labelAt };
+  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence };
 
   if (!self.McpApp) return;
   const status = document.querySelector('[data-status]');
