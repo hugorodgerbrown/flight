@@ -129,7 +129,9 @@ class Fr24Api:
         try:
             answer = self.answer(AIRPORT.format(code=code.upper()), {})
         except Fr24Error as exc:
-            if exc.status == 404:
+            # 404: no such airport. 403: the plan doesn't include airport details
+            # (Airports Full is on Essential and above, not Explorer).
+            if exc.status in (403, 404):
                 return None
             raise
         return answer if isinstance(answer, dict) and answer.get("lat") is not None else None

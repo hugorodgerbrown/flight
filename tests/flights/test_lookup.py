@@ -9,7 +9,6 @@ from freezegun import freeze_time
 from apps.flights import fr24, lookup
 from apps.flights.models import Airport
 from tests import fr24_fake
-from tests.factories import AirportFactory
 from tests.fr24_fake import LIVE_BA117, SUMMARY_BA117, SUMMARY_EI154
 
 NOW = datetime(2026, 11, 26, 9, 32, tzinfo=UTC)
@@ -38,14 +37,21 @@ def test_a_live_flight_joins_its_own_leg(api: dict[str, Any]) -> None:
 
 
 @freeze_time(NOW)
-def test_airports_are_fetched_once_and_kept(api: dict[str, Any]) -> None:
-    """The first lookup stores both airports; later ones don't ask for them again."""
+def test_bundled_airports_cost_no_calls(api: dict[str, Any]) -> None:
+    """LHR and JFK are in the bundled list, so a lookup is two calls and no more."""
     api["live"] = [LIVE_BA117]
     lookup.where("BA117")
-    assert sorted(a.code for a in Airport.objects.all()) == ["JFK", "LHR"]
-    heathrow = Airport.objects.with_code("LHR").get()
-    assert (heathrow.icao, heathrow.country, heathrow.tz) == (
-        "EGLL",
+    assert api["calls"] == [fr24.LIVE, fr24.SUMMARY]
+
+
+@freeze_time(NOW)
+def test_an_airport_the_list_lacks_is_fetched_once_and_kept(api: dict[str, Any]) -> None:
+    """A code the bundled list doesn't have is asked for once, then stored."""
+    api["live"] = [{**LIVE_BA117, "dest_iata": "QXA"}]
+    lookup.where("BA117")
+    quixley = Airport.objects.with_code("QXA").get()
+    assert (quixley.icao, quixley.country, quixley.tz) == (
+        "QXAA",
         "United Kingdom",
         "Europe/London",
     )
@@ -53,6 +59,13 @@ def test_airports_are_fetched_once_and_kept(api: dict[str, Any]) -> None:
     lookup.cache.clear()
     lookup.where("BA117")
     assert api["calls"] == [fr24.LIVE, fr24.SUMMARY]
+
+
+@pytest.mark.parametrize("status", [403, 404])
+def test_an_airport_endpoint_the_plan_lacks_is_no_airport(api: dict[str, Any], status: int) -> None:
+    """Explorer has no Airports Full (403); an unknown code is 404: both are just "no airport"."""
+    api["status"] = status
+    assert fr24.Fr24Api("k", gap=0).airport("QXA") is None
 
 
 @freeze_time(NOW)
@@ -92,11 +105,10 @@ def test_a_flight_without_a_route_cant_be_mapped(api: dict[str, Any]) -> None:
 @freeze_time(NOW)
 def test_an_airport_with_an_unknown_time_zone_is_kept_in_utc(api: dict[str, Any]) -> None:
     """A time zone Python doesn't know is stored as UTC rather than failing the lookup."""
-    AirportFactory.create()
-    api["airports"]["JFK"] = {**fr24_fake.AIRPORTS["JFK"], "timezone": {"name": "Mars/Base"}}
-    api["live"] = [LIVE_BA117]
+    api["airports"]["QXA"] = {**fr24_fake.AIRPORTS["QXA"], "timezone": {"name": "Mars/Base"}}
+    api["live"] = [{**LIVE_BA117, "dest_iata": "QXA"}]
     lookup.where("BA117")
-    assert Airport.objects.with_code("JFK").get().tz == "UTC"
+    assert Airport.objects.with_code("QXA").get().tz == "UTC"
 
 
 def test_an_airport_code_that_isnt_a_code_isnt_asked_for(api: dict[str, Any]) -> None:

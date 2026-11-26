@@ -19,9 +19,18 @@ a month.
   codeshare tip.
 - **ETA, not delay.** Flightradar24 tracks aircraft and has no airline
   schedules, so every answer says its times can't show lateness.
-- **Airports are stored, not bundled.** Flights name airports only by code.
-  Each new code is fetched once from `/static/airports/{code}/full` into
-  `Airport`, so we hold only airports we've seen.
+- **Airports are bundled.** Flights name airports only by code, and
+  Flightradar24's Airports Full endpoint isn't on the Explorer plan. So the
+  7,917 airports with an IATA code, from
+  [mwgg/Airports](https://github.com/mwgg/Airports) (MIT, licence beside it in
+  `apps/flights/data/`), are loaded into `Airport` by migration. Any other
+  code is tried once on Flightradar24's endpoint, where the plan allows, and
+  stored.
+- **Callsigns are asked for as callsigns.** A number with a three-letter
+  (ICAO) airline code, such as BAW117, goes in Flightradar24's `callsigns`
+  filter; anything else in `flights`.
+- **Landed means a landing was seen.** `flight_ended` only means "no longer
+  tracked", so without `datetime_landed` the answer is "no live position".
 - **One client, two paces.** `apps/flights/fr24.py` is shared by the tool and
   `fr24_check`. The check paces its calls; a lookup someone is waiting on
   doesn't, and waits only 2 seconds before retrying a 429.
@@ -36,4 +45,5 @@ a month.
 - A codeshare (marketing) number isn't found. Mapping codeshares needs
   another source.
 - A flight with no route in Flightradar24 can't be mapped, and says so.
-- Each lookup costs two calls, plus one per airport the first time it's seen.
+- Each lookup costs two calls. Refreshing the bundled list means a new
+  data file and migration.

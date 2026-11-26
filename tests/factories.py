@@ -99,7 +99,7 @@ class NoteFactory(factory.django.DjangoModelFactory):
 
 
 class AirportFactory(factory.django.DjangoModelFactory):
-    """London Heathrow, unless told otherwise."""
+    """A made-up airport, so it never clashes with the bundled ones."""
 
     class Meta:
         """Factory metadata."""
@@ -107,11 +107,11 @@ class AirportFactory(factory.django.DjangoModelFactory):
         model = Airport
         django_get_or_create = ("icao",)
 
-    iata = "LHR"
-    icao = "EGLL"
-    name = "London Heathrow"
-    city = "London"
-    country = "United Kingdom"
-    lat = 51.47
-    lon = -0.4543
+    iata = "QQQ"
+    icao = "QQQQ"
+    name = "Quayside Airport"
+    city = "Quayside"
+    country = "GB"
+    lat = 50.5
+    lon = -1.5
     tz = "Europe/London"

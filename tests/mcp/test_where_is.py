@@ -45,7 +45,7 @@ def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
     (content,) = result["content"]
     text = content["text"]
     assert text.startswith(
-        "BA117 is in the air from London Heathrow Airport (LHR) to New York John F. Kennedy "
+        "BA117 is in the air from London Heathrow Airport (LHR) to John F Kennedy "
         "International Airport (JFK), "
     )
     assert "% of the way, at 36,000 ft." in text
@@ -87,7 +87,7 @@ def test_a_flight_seen_leaving_but_not_now_tracked_says_so(fr24: dict[str, Any])
     flight = where_is(None, {"flight": "BA117"})
     assert flight["markdown"].startswith(
         "Flightradar24 has no live position for BA117 right now. Its latest flight took off "
-        "from London Heathrow Airport (LHR) at 08:36 local time for New York John F. Kennedy "
+        "from London Heathrow Airport (LHR) at 08:36 local time for John F Kennedy "
         "International Airport (JFK) and hasn't been reported landed."
     )
     assert flight["status"] == "lost"
@@ -109,6 +109,16 @@ def test_a_flight_found_by_callsign_names_its_flight_number(fr24: dict[str, Any]
     fr24["live"] = [LIVE_BA117]
     text = where_is(None, {"flight": "BAW17R"})["markdown"]
     assert "Flightradar24 lists it as BA117." in text
+    assert fr24["params"][0] == {"callsigns": "BAW17R"}
+
+
+@freeze_time(NOW)
+def test_a_flight_that_ended_without_a_landing_isnt_called_landed(fr24: dict[str, Any]) -> None:
+    """flight_ended alone means "no longer tracked", not "landed"."""
+    fr24["summaries"] = [{**SUMMARY_BA117, "flight_ended": True}]
+    flight = where_is(None, {"flight": "BA117"})
+    assert flight["status"] == "lost"
+    assert "hasn't been reported landed" in flight["markdown"]
 
 
 def test_an_unknown_flight_explains_codeshares(fr24: dict[str, Any]) -> None:

@@ -2,7 +2,9 @@
 
 ``where(number)`` asks Flightradar24 for the flight's live position and its
 flights over the last day, joins them by leg (``fr24_id``), names the
-airports from stored ``Airport`` rows (fetching any new one once), and
+airports from stored ``Airport`` rows (the bundled list, loaded by
+migration; Flightradar24's airport endpoint is tried for any other code, and
+isn't on every plan), and
 returns a plain dict: in the air, landed, or seen taking off but not now
 tracked. Flightradar24 tracks aircraft, not airline schedules, so there is
 an ETA but no delay.
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -41,6 +44,10 @@ CACHE_SECONDS = 60
 # Someone is waiting on a lookup, so calls aren't paced and a rate-limited
 # call waits only briefly before its one retry.
 RETRY_SECONDS = 2
+
+# An ICAO airline code (three letters) makes the number a callsign, such as
+# BAW117 or EZY8812, which Flightradar24 filters apart from flight numbers.
+CALLSIGN = re.compile(r"^[A-Z]{3}\d")
 
 AIRBORNE = "airborne"
 LANDED = "landed"
@@ -88,12 +95,13 @@ def where(number: str) -> dict[str, Any] | None:
 
 def look_up(api: Fr24Api, number: str, now: datetime) -> dict[str, Any] | None:
     """Ask Flightradar24 about ``number`` and return what it said, as ``where`` does."""
-    live = next((r for r in api.get(LIVE, {"flights": number}) if matches(number, r)), None)
+    by = "callsigns" if CALLSIGN.match(number) else "flights"
+    live = next((r for r in api.get(LIVE, {by: number}) if matches(number, r)), None)
     since = now.astimezone(UTC).replace(microsecond=0, tzinfo=None)
     summaries = api.get(
         SUMMARY,
         {
-            "flights": number,
+            by: number,
             "flight_datetime_from": str(since - SUMMARY_WINDOW),
             "flight_datetime_to": str(since),
         },
@@ -133,8 +141,10 @@ def look_up(api: Fr24Api, number: str, now: datetime) -> dict[str, Any] | None:
             "position": position,
             "altitude_ft": int(live.get("alt") or 0),
         }
+    # Only a detected landing is a landing: flight_ended means "no longer
+    # tracked", which a flight that vanished from coverage also is.
     landed = when((summary or {}).get("datetime_landed"))
-    if landed or (summary or {}).get("flight_ended"):
+    if landed:
         return flight | {"status": LANDED, "arrives": iso(landed), "progress": 1.0}
     return flight | {"status": LOST, "arrives": None, "progress": 0.0}
 
