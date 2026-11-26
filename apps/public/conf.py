@@ -7,10 +7,10 @@ the project template from its answers; edit freely.
 """
 
 # Who runs the site, as the terms and privacy notice name them: the
-# controller under UK GDPR, which must be identified by name. Like the other
-# Titan apps, no postal address: the contact address below is the way to
-# reach us. Set OPERATOR_ADDRESS to add one (a company's registered office).
-OPERATOR = "Hugo Rodger-Brown"
+# controller under UK GDPR. Hugo's choice (2026-11-26): the role, not a
+# name. Like the other Titan apps, no postal address: the contact address
+# below is the way to reach us. Set OPERATOR_ADDRESS to add one.
+OPERATOR = "Data Controller"
 OPERATOR_ADDRESS = ""
 
 # The date the terms and privacy notice last changed; bump it with them.

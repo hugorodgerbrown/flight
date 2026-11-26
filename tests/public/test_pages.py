@@ -89,7 +89,7 @@ def test_legal_pages_are_flights_own(client: Client, name: str) -> None:
     html = unescape(client.get(reverse(f"public:{name}")).content.decode())
     assert "Placeholder" not in html
     assert "Last updated: not yet" not in html
-    assert f"run by {conf.OPERATOR}" in html
+    assert f"run by its {conf.OPERATOR}" in html
     assert f'href="mailto:{conf.CONTACT_EMAIL}"' in html
     assert f"Last updated: {conf.LEGAL_UPDATED}" in html
 
