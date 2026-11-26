@@ -38,7 +38,7 @@
 <p>When you connect an AI assistant, we keep a record of the connection: the app's name, the access it was given and when, and the tokens that let it act for you. To end a connection, remove {{ pwa.name }} in the assistant's settings; deleting your account ends them all. We receive only what the assistant sends to {{ pwa.name }}'s tools, such as a flight number; we never see the rest of your conversation. What you say to the assistant is handled by its maker, Anthropic or OpenAI, under their own privacy policy.</p>
 <p>Why: to let the assistant you connected use your account (contract).</p>
 <h3>Keeping the service safe</h3>
-<p>Our servers log each request: your IP address, the date and time, the page asked for (without any query), the response and your browser's description of itself. We also count recent requests by IP address to stop abuse, and keep a short record of recent changes so that a repeated request isn't applied twice. Logs are kept by our hosting provider for a short time, normally no more than 30 days; the counts and records are deleted within a day.</p>
+<p>Our servers log each request: your IP address, the date and time, the page asked for (without any query), the response and your browser's description of itself. We also count recent requests by IP address to stop abuse, and keep a short record of recent changes so that a repeated request isn't applied twice. Logs are kept by our hosting provider for a short time, normally no more than 30 days. The counts last minutes, and the records of recent changes are deleted within two days.</p>
 <p>Why: to keep {{ pwa.name }} secure and working (our legitimate interest in protecting the service and the people who use it).</p>
 {% if analytics.domain %}
 <h3>Visitor counts</h3>
@@ -47,7 +47,7 @@
 {% endif %}
 <h2>Cookies and your device</h2>
 <p>We set two cookies, both strictly necessary, so they don't need your consent: one keeps you signed in (for up to 90 days, or until you sign out), and one protects forms from forgery. There are no analytics, advertising or third-party cookies.</p>
-<p>The installed app stores pages you've opened and anything you do while offline on your device, so it works without a connection. Signing out removes them.</p>
+<p>The installed app stores pages you've opened on your device, so it works without a connection, and holds anything you do while offline until it can be sent. Signing out removes the saved pages; anything not yet sent stays on the device and is sent when you next sign in.</p>
 <h2>Who else handles your data</h2>
 <p>We don't sell your data or share it for advertising. These providers process it for us, only to run {{ pwa.name }}, under contracts that require them to protect it:</p>
 <ul>
