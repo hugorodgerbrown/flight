@@ -5,11 +5,12 @@ no arguments it lists the 20 flights it would look up and spends nothing.
 ``--commit`` asks Flightradar24 for each flight's live position and its
 summary over the last day, 15 flights to a call, then prints what each
 answer held and the credits Flightradar24 counted. ``--usage`` prints the
-account's credits for the last 24 hours.
+account's credits for the last 24 hours. If the credits can't be read, the
+lookups still run and the credits are reported as unknown.
 
 Run it where FR24_API_KEY is set, such as the Render shell::
 
-    uv run python manage.py fr24_check --commit
+    python manage.py fr24_check --commit
 """
 
 import json
@@ -33,6 +34,10 @@ TIMEOUT = 30
 BATCH = 15
 # A gap between calls keeps well under any plan's rate limit.
 GAP_SECONDS = 6.5
+# A rate-limited call (429) waits this long and is tried once more.
+RETRY_SECONDS = 30
+# Python's default User-Agent (Python-urllib) is refused by bot protection.
+USER_AGENT = "Flight/1.0 (fr24_check)"
 # How far back a flight summary looks for the flight's latest leg.
 SUMMARY_WINDOW = timedelta(days=1)
 
@@ -86,7 +91,20 @@ class Fr24Api:
         self.calls = 0
 
     def get(self, path: str, params: dict[str, str]) -> list[dict[str, Any]]:
-        """GET ``path`` and return its ``data`` rows."""
+        """GET ``path`` and return its ``data`` rows, retrying a 429 once."""
+        try:
+            return self.fetch(path, params)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 429:
+                raise failure(path, exc) from exc
+            pause(RETRY_SECONDS)
+            try:
+                return self.fetch(path, params)
+            except urllib.error.HTTPError as again:
+                raise failure(path, again) from again
+
+    def fetch(self, path: str, params: dict[str, str]) -> list[dict[str, Any]]:
+        """Make one paced call to ``path``; an HTTP error is left to the caller."""
         if self.calls:
             pause(GAP_SECONDS)
         self.calls += 1
@@ -96,17 +114,14 @@ class Fr24Api:
                 "Authorization": f"Bearer {self.key}",
                 "Accept": "application/json",
                 "Accept-Version": API_VERSION,
+                "User-Agent": USER_AGENT,
             },
         )
         try:
             with opener(request) as response:
                 answer = json.loads(response.read())
-        except urllib.error.HTTPError as exc:
-            if exc.code in (401, 403):
-                raise CommandError("Flightradar24 refused the key (check FR24_API_KEY).") from exc
-            if exc.code == 402:
-                raise CommandError("Flightradar24 says the plan has no credits left.") from exc
-            raise CommandError(f"Flightradar24 answered {exc.code} for {path}.") from exc
+        except urllib.error.HTTPError:
+            raise
         except (OSError, ValueError) as exc:
             raise CommandError(
                 f"Flightradar24 could not be reached: {type(exc).__name__}."
@@ -118,6 +133,30 @@ class Fr24Api:
         """Return the credits used in the last 24 hours, across every endpoint."""
         rows = self.get("/usage", {"period": "24h"})
         return sum(int(row.get("credits") or 0) for row in rows)
+
+
+def explanation(exc: urllib.error.HTTPError) -> str:
+    """Return Flightradar24's own message and details from an error body, if any."""
+    try:
+        body = json.loads(exc.read() or b"{}")
+    except OSError, ValueError:
+        return ""
+    if not isinstance(body, dict):
+        return ""
+    said = ". ".join(str(body[k]).rstrip(".") for k in ("message", "details") if body.get(k))
+    return f" Flightradar24 said: {said}." if said else ""
+
+
+def failure(path: str, exc: urllib.error.HTTPError) -> CommandError:
+    """Return the CommandError for an HTTP error on ``path``, with the API's message."""
+    said = explanation(exc)
+    if exc.code == 401:
+        return CommandError(f"Flightradar24 refused the key (check FR24_API_KEY).{said}")
+    if exc.code == 402:
+        return CommandError(f"Flightradar24 says the plan has no credits left.{said}")
+    if exc.code == 403:
+        return CommandError(f"Flightradar24 answered 403 (forbidden) for {path}.{said}")
+    return CommandError(f"Flightradar24 answered {exc.code} for {path}.{said}")
 
 
 def matches(asked: str, row: dict[str, Any]) -> bool:
@@ -201,7 +240,7 @@ class Command(BaseCommand):
             )
             return
         api = Fr24Api(self.key())
-        before = api.credits()
+        before = self.credits(api)
         now = datetime.now(tz=UTC).replace(microsecond=0, tzinfo=None)
         live_rows: list[dict[str, Any]] = []
         summary_rows: list[dict[str, Any]] = []
@@ -223,8 +262,17 @@ class Command(BaseCommand):
             rows.append(summarise(asked, live, summary))
             if options["verbosity"] > 0:
                 self.stdout.write(line(rows[-1]))
-        after = api.credits()
-        self.stdout.write(report(rows, api.calls, after - before))
+        after = self.credits(api) if before is not None else None
+        used = after - before if before is not None and after is not None else None
+        self.stdout.write(report(rows, api.calls, used))
+
+    def credits(self, api: Fr24Api) -> int | None:
+        """Return the credits used so far, or None (with a warning) if they can't be read."""
+        try:
+            return api.credits()
+        except CommandError as exc:
+            self.stderr.write(f"Couldn't read the credits, so they're reported as unknown: {exc}")
+            return None
 
     def key(self) -> str:
         """Return FR24_API_KEY, or stop before any call if it isn't set."""
@@ -246,7 +294,7 @@ def line(row: dict[str, Any]) -> str:
     return f"{row['asked']}: {row['flight']} {row['route']}, {where}"
 
 
-def report(rows: list[dict[str, Any]], calls: int, credits: int) -> str:
+def report(rows: list[dict[str, Any]], calls: int, credits: int | None) -> str:
     """Return the totals as Markdown, ready to paste into the issue."""
     lines = [
         "| Asked | Found as | Route | In the air | Position | ETA | Took off | Landed |",
@@ -266,7 +314,11 @@ def report(rows: list[dict[str, Any]], calls: int, credits: int) -> str:
         "",
         f"- Found {len(found)} of {len(rows)}; {sum(r['airborne'] for r in found)} in the air "
         "with a live position.",
-        f"- Calls: {calls} (including 2 usage reads). Credits used: {credits}, "
-        "by Flightradar24's count for the last 24 hours.",
+        f"- Calls: {calls} (including usage reads). "
+        + (
+            f"Credits used: {credits}, by Flightradar24's count for the last 24 hours."
+            if credits is not None
+            else "Credits used: unknown (the usage read failed)."
+        ),
     ]
     return "\n".join(lines)
