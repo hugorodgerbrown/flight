@@ -159,7 +159,8 @@ def test_the_latest_leg_wins() -> None:
 
 def test_usage_reads_the_credits(fr24: dict[str, Any]) -> None:
     """--usage prints the credits used in the last 24 hours."""
-    assert run("--usage") == "Credits used in the last 24 hours: 100.\n"
+    assert run("--usage").endswith("Credits used in the last 24 hours: 100.\n")
+    assert run("--usage", "-v", "0") == "Credits used in the last 24 hours: 112.\n"
 
 
 def test_it_needs_a_key(fr24: dict[str, Any], settings: Any) -> None:
@@ -172,18 +173,33 @@ def test_it_needs_a_key(fr24: dict[str, Any], settings: Any) -> None:
 
 @pytest.mark.parametrize(
     ("status", "message"),
-    [
-        (401, "refused the key"),
-        (402, "no credits left"),
-        (403, "answered 403 \\(forbidden\\) for /live"),
-        (500, "answered 500"),
-    ],
+    [(401, "refused the key"), (402, "no credits left")],
 )
-def test_errors_stop_the_run(fr24: dict[str, Any], status: int, message: str) -> None:
-    """A refused key, an empty plan or a server error fails the command (non-zero exit)."""
+def test_a_refused_key_or_an_empty_plan_stops_the_run(
+    fr24: dict[str, Any], status: int, message: str
+) -> None:
+    """No later call can succeed, so the command fails (non-zero exit)."""
     fr24["answers"] = {"/live/flight-positions/full": status}
     with pytest.raises(CommandError, match=message):
         run("BA117", "--commit")
+
+
+@pytest.mark.parametrize(
+    ("status", "message"),
+    [(403, "answered 403 (forbidden) for /live"), (500, "answered 500")],
+)
+def test_a_failed_batch_is_reported_and_the_run_finishes(
+    fr24: dict[str, Any], status: int, message: str, caplog: Any
+) -> None:
+    """Any other failure marks the batch's flights and the report still prints."""
+    fr24["answers"] = {"/live/flight-positions/full": status}
+    err = io.StringIO()
+    printed = run("BA117", "--commit", err=err)
+    assert message in err.getvalue()
+    assert "| BA117 | lookup failed (live position failed) |" in printed
+    assert "BA117: lookup failed (live position failed)" in printed
+    assert "Lookups with a failed call: 1, 0 of them partly answered" in printed
+    assert any(r.levelname == "WARNING" and message in r.getMessage() for r in caplog.records)
 
 
 def test_an_unreachable_api_fails_the_command(fr24: dict[str, Any], monkeypatch: Any) -> None:
@@ -204,7 +220,7 @@ def test_an_answer_without_data_is_no_rows(fr24: dict[str, Any], monkeypatch: An
         return FakeResponse(b'"nothing"')
 
     monkeypatch.setattr(fr24_check, "opener", odd)
-    assert run("--usage") == "Credits used in the last 24 hours: 0.\n"
+    assert run("--usage", "-v", "0") == "Credits used in the last 24 hours: 0.\n"
 
 
 def test_a_live_leg_takes_only_its_own_summary() -> None:
@@ -224,10 +240,9 @@ def test_an_error_shows_what_flightradar24_said(fr24: dict[str, Any]) -> None:
     """The API's own message and details go in the error, so a refusal can be told apart."""
     fr24["answers"] = {"/live/flight-positions/full": 403}
     fr24["body"] = {"message": "Forbidden", "details": "Client blocked."}
-    with pytest.raises(
-        CommandError, match=re.escape("Flightradar24 said: Forbidden. Client blocked.")
-    ):
-        run("BA117", "--commit")
+    err = io.StringIO()
+    run("BA117", "--commit", err=err)
+    assert "Flightradar24 said: Forbidden. Client blocked." in err.getvalue()
 
 
 def test_an_error_body_that_isnt_json_is_left_out() -> None:
@@ -246,12 +261,13 @@ def test_a_rate_limited_call_is_tried_once_more(fr24: dict[str, Any]) -> None:
     assert fr24_check.RETRY_SECONDS in fr24["pauses"]
 
 
-def test_a_second_429_stops_the_run(fr24: dict[str, Any]) -> None:
-    """Rate-limited twice in a row, the command fails with the API's message."""
+def test_a_second_429_fails_that_call(fr24: dict[str, Any]) -> None:
+    """Rate-limited twice in a row, the call fails with the API's message."""
     fr24["errors"] = {"/live/flight-positions/full": [429, 429]}
     fr24["body"] = {"message": "Rate limit exceeded"}
-    with pytest.raises(CommandError, match=r"answered 429 .*Rate limit exceeded"):
-        run("BA117", "--commit")
+    err = io.StringIO()
+    run("BA117", "--commit", err=err)
+    assert re.search(r"answered 429 .*Rate limit exceeded", err.getvalue())
 
 
 def test_a_failed_credits_read_doesnt_stop_the_lookups(fr24: dict[str, Any]) -> None:
@@ -270,3 +286,86 @@ def test_a_failed_second_credits_read_is_unknown_too(fr24: dict[str, Any]) -> No
     """If only the closing /usage read fails, the credits are unknown, not a guess."""
     fr24["errors"] = {"/usage": [None, 500]}
     assert "Credits used: unknown" in run("BA117", "--commit")
+
+
+def test_every_call_is_logged_and_narrated(fr24: dict[str, Any], caplog: Any) -> None:
+    """Each call gets a console line before and after, and an INFO log line; never the key."""
+    caplog.set_level("INFO", logger="apps.core.management.commands.fr24_check")
+    fr24["answers"] = {"/live/flight-positions/full": [LIVE]}
+    printed = run("BA117", "--commit")
+    assert "Looking up 1 flight in 4 calls" in printed
+    assert "FR24_API_KEY is set (8 characters)" in printed
+    assert "Call 2 of 4: live positions for 1 flight..." in printed
+    assert "Answered 200 in" in printed
+    assert "with 1 row." in printed
+    logged = [r.getMessage() for r in caplog.records if r.levelname == "INFO"]
+    assert any("GET /live/flight-positions/full flights=BA117 answered 200" in m for m in logged)
+    assert "test-key" not in printed
+    assert all("test-key" not in m for m in logged)
+
+
+def test_verbosity_two_shows_the_url_and_rate_limit_headers(
+    fr24: dict[str, Any], monkeypatch: Any
+) -> None:
+    """-v 2 adds the request URL (no key in it) and the headers worth seeing."""
+
+    def headed(request: Any) -> FakeResponse:
+        response = FakeResponse(json.dumps({"data": []}).encode())
+        response.headers = {"x-ratelimit-remaining": "9", "authorization": "secret"}  # type: ignore[attr-defined]
+        return response
+
+    monkeypatch.setattr(fr24_check, "opener", headed)
+    printed = run("BA117", "--commit", "-v", "2")
+    assert f"GET {fr24_check.BASE_URL}/live/flight-positions/full?flights=BA117" in printed
+    assert "x-ratelimit-remaining: 9" in printed
+    assert "secret" not in printed
+
+
+def test_verbosity_zero_prints_only_the_report(fr24: dict[str, Any]) -> None:
+    """-v 0 prints the table and totals, nothing else."""
+    printed = run("BA117", "--commit", "-v", "0")
+    assert printed.startswith("| Asked |")
+    assert "Call " not in printed
+
+
+def test_credits_are_split_by_endpoint(fr24: dict[str, Any], monkeypatch: Any) -> None:
+    """The report names what each endpoint spent between the two credit reads."""
+    reads = iter(
+        [
+            [{"endpoint": "live", "credits": 10}],
+            [{"endpoint": "live", "credits": 14}, {"endpoint": "summary", "credits": 5}],
+        ]
+    )
+    monkeypatch.setattr(
+        fr24_check.Fr24Api,
+        "get",
+        lambda self, path, params: next(reads) if path == "/usage" else [],
+    )
+    assert "Credits used: 9 (live 4, summary 5)" in run("BA117", "--commit")
+
+
+def test_a_non_json_answer_fails_that_call(fr24: dict[str, Any], monkeypatch: Any) -> None:
+    """A body that isn't JSON is a failed call, logged and reported."""
+    monkeypatch.setattr(fr24_check, "opener", lambda request: FakeResponse(b"<html>"))
+    err = io.StringIO()
+    run("BA117", "--commit", err=err)
+    assert "isn't JSON" in err.getvalue()
+
+
+def test_a_partly_failed_lookup_is_marked_not_counted_as_coverage(fr24: dict[str, Any]) -> None:
+    """Live failed but the summary answered: the row keeps the summary and says live is unknown."""
+    fr24["answers"] = {"/live/flight-positions/full": 500, "/flight-summary/full": [LANDED]}
+    printed = run("EI154", "--commit")
+    assert "| EI154 | EI154 (live position failed) | DUB-LHR | unknown |" in printed
+    assert "EI154: EI154 DUB-LHR, on the ground; last took off" in printed
+    assert "Lookups with a failed call: 1, 1 of them partly answered" in printed
+
+
+def test_a_failed_summary_beside_a_live_answer_is_marked(fr24: dict[str, Any]) -> None:
+    """Live answered but the summary failed: the row says so."""
+    fr24["answers"] = {"/live/flight-positions/full": [LIVE], "/flight-summary/full": 500}
+    printed = run("BA117", "--commit")
+    assert "| BA117 | BA117 (summary failed) | LHR-JFK | yes |" in printed
+    assert (
+        "in the air at 55.1, -30.2, 38000 ft, ETA 2026-11-25T23:52:00Z (summary failed)" in printed
+    )
