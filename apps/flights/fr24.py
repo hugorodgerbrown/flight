@@ -39,11 +39,13 @@ LIVE = "/live/flight-positions/full"
 SUMMARY = "/flight-summary/full"
 USAGE = "/usage"
 AIRPORT = "/static/airports/{code}/full"
+TRACKS = "/flight-tracks"
 # What each endpoint is called in progress lines.
 LABELS = {
     LIVE: "live positions",
     SUMMARY: "flight summaries",
     USAGE: "credits used",
+    TRACKS: "flight track",
 }
 # Response headers worth showing at -v 2: never anything that echoes the key.
 SHOWN_HEADERS = (
@@ -136,6 +138,31 @@ class Fr24Api:
             raise
         return answer if isinstance(answer, dict) and answer.get("lat") is not None else None
 
+    def last_point(self, fr24_id: str) -> dict[str, Any] | None:
+        """Return the latest point of a flight's track, or None if there isn't one.
+
+        The live feed can leave out a flight that Flightradar24 is still
+        following (RAS-140), while its track still has the latest point.
+        """
+        if not fr24_id.isalnum():
+            return None
+        try:
+            answer = self.answer(TRACKS, {"flight_id": fr24_id})
+        except Fr24Error as exc:
+            # 404: no track. 403: the plan doesn't include tracks.
+            if exc.status in (403, 404):
+                return None
+            raise
+        legs = answer.get("data") if isinstance(answer, dict) else answer
+        points = [
+            p
+            for leg in (legs if isinstance(legs, list) else [])
+            if isinstance(leg, dict)
+            for p in (leg.get("tracks") or [])
+            if isinstance(p, dict) and p.get("lat") is not None and p.get("lon") is not None
+        ]
+        return max(points, key=lambda p: str(p.get("timestamp") or ""), default=None)
+
     def answer(self, path: str, params: dict[str, str]) -> Any:
         """GET ``path`` and return its JSON, retrying a 429 once."""
         try:
@@ -197,7 +224,7 @@ class Fr24Api:
             raise Fr24Error(
                 f"Flightradar24 answered {path} with something that isn't JSON."
             ) from exc
-        rows = answer.get("data") if isinstance(answer, dict) else None
+        rows = answer.get("data") if isinstance(answer, dict) else answer
         seen = len(rows) if isinstance(rows, list) else int(isinstance(answer, dict))
         self.record(path, flights, status, started, seen, headers)
         return answer
