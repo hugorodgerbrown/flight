@@ -29,7 +29,7 @@
 <h3>Looking up a flight</h3>
 <p>When you ask where a flight is, on the website or from Claude or ChatGPT, we send the flight number, and nothing about you, to Flightradar24, and keep its answer for about a minute so that several people asking about the same flight share one lookup. We don't record who asked. Our server logs may note the flight number, without your account.</p>
 <h3>Flights you follow, and alerts</h3>
-<p>If you follow a flight to be told when it takes off and lands, we keep the flight number, which alerts you chose (push, email or both) and when each alert was sent, until the day after it lands. If you turn on notifications on a device, your browser gives us a push address for that device, with its keys, and we keep it, with the browser's name, until you turn notifications off or the push service tells us it no longer works. Push messages are delivered by your browser's push service (Apple, Google or Mozilla), which sees that a message was sent to your device{% if keeps_email %}; email alerts go through our email provider{% endif %}.</p>
+<p>If you follow a flight to be told when it takes off and lands, we keep the flight number, which alerts you chose (push, email or both) and when each alert was sent, until 24 hours after it lands, or after we stop watching a flight that never takes off. If you turn on notifications on a device, your browser gives us a push address for that device, with its keys, and we keep it, with the browser's name, until you turn notifications off or the push service tells us it no longer works. Push messages are delivered by your browser's push service (Apple, Google or Mozilla), which sees that a message was sent to your device{% if keeps_email %}; email alerts go through our email provider{% endif %}.</p>
 <p>Why: to send the alerts you asked for (contract). Your device asks for your permission before it lets us send push notifications, and you can withdraw it in your browser or device settings at any time.</p>
 <h3>Sharing a live link to a flight</h3>
 <p>If you share a flight, we keep the link's random code, the flight it shows, when it was made and when it ends. Anyone with the link can see that flight's live position, route and times, without signing in. The page doesn't show your name or email address. A link stops working 24 hours after the flight lands, or sooner if you stop sharing it from your account page; we then delete it.</p>
@@ -64,7 +64,7 @@
 <ul>
   <li>Your account, passkeys and connections: until you delete them, or your account.</li>
   <li>Sign-in requests: deleted within a day of expiring.</li>
-  <li>Flights you follow: until the day after the flight lands.</li>
+  <li>Flights you follow: until 24 hours after the flight lands.</li>
   <li>Share links: until the link ends or you stop it.</li>
   <li>Server logs: normally no more than 30 days.</li>
 </ul>
