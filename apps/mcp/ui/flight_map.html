@@ -20,11 +20,16 @@
     --rule: var(--color-border-secondary, color-mix(in srgb, currentColor 15%, transparent));
     --sea: color-mix(in srgb, currentColor 4%, transparent);
     --land: color-mix(in srgb, currentColor 11%, transparent);
+    --space: color-mix(in srgb, currentColor 7%, transparent);
     --accent: var(--color-text-info, #2f6fde);
   }
   body { margin: 0; padding: 12px 16px 16px; }
   .map { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--sea); }
   .map .land { fill: var(--land); stroke: none; }
+  .map.globe { background: var(--space); }
+  .map .sphere { fill: Canvas; stroke: var(--rule); }
+  .map .graticule { fill: none; stroke: var(--rule); stroke-width: 0.6; }
+  .map .globe-land { fill-rule: evenodd; }
   .map .ahead { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 5; }
   .map .flown { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
   .map .airport { fill: Canvas; stroke: var(--muted); stroke-width: 1.5; }

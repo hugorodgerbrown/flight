@@ -222,3 +222,71 @@ describe('flight map card', () => {
     expect(document.querySelector('[data-status]').textContent).toBe('Something went wrong.');
   });
 });
+
+describe('long-haul on a globe (RAS-143)', () => {
+  const LHR = { code: 'LHR', name: 'London Heathrow', lat: 51.47, lon: -0.4543 };
+  const JFK = { code: 'JFK', name: 'New York JFK', lat: 40.6398, lon: -73.7789 };
+  const LONG = { ...FLIGHT, origin: LHR, destination: JFK, position: { lat: 59.5, lon: -37 }, path: [[51.47, -0.46], [55.8, -14.2], [59.5, -37]] };
+
+  // Run the vendored script as the card does, a classic script with no
+  // module system, so it sets self.d3.
+  const D3 = readFileSync(resolve(__dirname, '../../../apps/mcp/ui/vendor/d3_geo.js'), 'utf8');
+  function withGlobe() {
+    new Function('exports', 'module', 'define', D3).call(self);
+    expect(typeof self.d3.geoOrthographic).toBe('function');
+  }
+
+  afterEach(() => {
+    delete self.d3;
+  });
+
+  it('puts a long-haul route on the globe and keeps a short hop flat', () => {
+    withGlobe();
+    expect(self.FlightMap.onGlobe(LONG)).toBe(true);
+    expect(self.FlightMap.onGlobe(FLIGHT)).toBe(false);
+  });
+
+  it('keeps the flat map when the globe library is missing', () => {
+    expect(self.FlightMap.onGlobe(LONG)).toBe(false);
+  });
+
+  it('draws the globe: sphere, graticule, land with holes, the route and the plane', () => {
+    withGlobe();
+    onResult({ structuredContent: LONG });
+    const svg = document.querySelector('[data-map]');
+    expect(svg.classList.contains('globe')).toBe(true);
+    expect(svg.querySelector('.sphere').getAttribute('d')).toMatch(/^M/);
+    expect(svg.querySelector('.graticule').getAttribute('d')).toMatch(/^M/);
+    expect(svg.querySelector('.land').classList.contains('globe-land')).toBe(true);
+    expect(svg.querySelector('.flown').getAttribute('d')).toMatch(/^M/);
+    expect(svg.querySelector('.ahead').getAttribute('d')).toMatch(/^M/);
+    const plane = svg.querySelector('.plane');
+    for (const axis of ['cx', 'cy']) expect(Number.isFinite(Number(plane.getAttribute(axis)))).toBe(true);
+    // A short hop afterwards goes back to the flat map.
+    onResult({ structuredContent: FLIGHT });
+    expect(svg.classList.contains('globe')).toBe(false);
+    expect(svg.querySelector('.sphere')).toBeNull();
+  });
+
+  it('curves the way ahead on from the plane\'s heading into the destination', () => {
+    const [flown, ahead] = self.FlightMap.legs(LONG);
+    const plane = flown[flown.length - 1];
+    expect(ahead[0]).toEqual(expect.objectContaining({ lat: plane.lat }));
+    const end = ahead[ahead.length - 1];
+    expect(end.lat).toBeCloseTo(JFK.lat, 6);
+    expect(end.lon).toBeCloseTo(JFK.lon, 6);
+    // It leaves the way the plane was going, not straight for JFK.
+    const heading = self.FlightMap.bearing({ lat: 55.8, lon: -14.2 }, plane);
+    const leaving = self.FlightMap.bearing(plane, ahead[1]);
+    const direct = self.FlightMap.bearing(plane, JFK);
+    expect(Math.abs(leaving - heading)).toBeLessThan(Math.abs(direct - heading));
+  });
+
+  it('goes straight for the destination when the plane is heading away from it', () => {
+    const plane = { lat: 50, lon: -20 };
+    const away = self.FlightMap.curveAhead(plane, JFK, { lat: 50, lon: -25 });
+    const direct = self.FlightMap.greatCircle(plane, JFK, 1, 64);
+    expect(away).toEqual(direct);
+    expect(self.FlightMap.curveAhead(plane, JFK, null)).toEqual(direct);
+  });
+});
