@@ -105,22 +105,39 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
     origin, destination = flight["origin"], flight["destination"]
     left = _clock(flight["departed"], origin["tz"])
     due = _clock(flight["arrives"], destination["tz"])
-    # Claude reads only this text, not the card, so it says everything the card shows.
+    seen = _clock(flight.get("seen"), "UTC")
+    # Claude reads only this text, not the card, so it says everything the card shows,
+    # and says where a position came from without guessing why one is missing (RAS-140).
     if flight["status"] == lookup.AIRBORNE:
-        text = (
-            f"{number} is in the air from {_airport(origin)} to {_airport(destination)}, "
-            f"{round(flight['progress'] * 100)}% of the way"
-            + (f", at {flight['altitude_ft']:,} ft" if flight["altitude_ft"] else "")
-            + "."
+        kind = flight.get("position_kind")
+        where_now = f"{round(flight['progress'] * 100)}% of the way" + (
+            f", at {flight['altitude_ft']:,} ft" if flight["altitude_ft"] else ""
         )
+        text = f"{number} is in the air from {_airport(origin)} to {_airport(destination)}"
+        if kind == lookup.LAST_SEEN:
+            text += (
+                f". Flightradar24's live feed isn't showing it, so this is the last position "
+                f"it recorded{f', at {seen} UTC' if seen else ''}: {where_now}."
+            )
+        elif kind == lookup.ESTIMATED:
+            text += (
+                f". Flightradar24 estimates it's {where_now}: the aircraft is out of its "
+                "receivers' range, so the position is worked out, not received."
+            )
+        else:
+            text += f", {where_now}."
         if left:
             text += f" It took off at {left} local time."
         if due:
             minutes = flight["minutes_to_go"]
             text += f" It's due at {due} local time, in {_duration(minutes)}."
         else:
-            text += " Flightradar24 has no arrival estimate for it yet."
-        text += " The map shows its route and where it is now."
+            text += " Flightradar24 has no arrival estimate for it right now."
+        text += (
+            " The map shows its route and that last position."
+            if kind == lookup.LAST_SEEN
+            else " The map shows its route and where it is now."
+        )
     elif flight["status"] == lookup.LANDED:
         text = (
             f"{number} landed at {_airport(destination)}"
@@ -131,11 +148,12 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
         )
     else:
         text = (
-            f"Flightradar24 has no live position for {number} right now. Its latest flight "
-            f"took off from {_airport(origin)}"
+            f"Flightradar24 isn't giving a position for {number} right now, and doesn't say "
+            f"why. Its latest flight took off from {_airport(origin)}"
             + (f" at {left} local time" if left else "")
-            + f" for {_airport(destination)} and hasn't been reported landed. "
-            "The map shows that route."
+            + f" for {_airport(destination)} and hasn't been reported landed."
+            + (f" Flightradar24 last heard from it at {seen} UTC." if seen else "")
+            + " The map shows that route."
         )
     if flight["operated_as"] != number:
         text += f" Flightradar24 lists it as {flight['operated_as']}."
@@ -143,6 +161,7 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
         "markdown": f"{text}\n\n{NO_SCHEDULE}",
         "departed_local": left,
         "arrives_local": due,
+        "seen_utc": seen,
     }
 
 
@@ -180,7 +199,7 @@ TOOLS: dict[str, Tool] = {
             },
             func=where_is,
             markdown=True,
-            ui="ui://flight/map-v2",
+            ui="ui://flight/map-v3",
         ),
         Tool(
             name="privacy_policy",

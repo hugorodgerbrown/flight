@@ -116,12 +116,29 @@ describe('flight map card', () => {
   it('shows a flight with no live position without a plane or a flown line', () => {
     onResult({ structuredContent: { ...FLIGHT, status: 'lost', progress: 0, position: null, departed_local: null, arrives_local: null } });
     const q = (name) => document.querySelector(`[data-${name}]`);
-    expect(q('summary').textContent).toBe('BA1234 has no live position right now.');
-    expect(q('pill').textContent).toBe('No live position');
+    expect(q('summary').textContent).toBe("Flightradar24 isn't giving a position for BA1234 right now.");
+    expect(q('pill').textContent).toBe('No position');
     expect(q('departed').textContent).toBe('');
     expect(q('arrives').textContent).toBe('');
     expect(q('map').querySelector('.plane')).toBeNull();
     expect(q('map').querySelector('.flown')).toBeNull();
+  });
+
+  it('labels an estimated position', () => {
+    onResult({ structuredContent: { ...FLIGHT, position_kind: 'estimated' } });
+    const q = (name) => document.querySelector(`[data-${name}]`);
+    expect(q('pill').textContent).toBe('Estimated position · 36,000 ft');
+    expect(q('pill').dataset.tone).toBe('ok');
+  });
+
+  it('shows the last recorded position of a flight missing from the live feed, with its time', () => {
+    onResult({ structuredContent: { ...FLIGHT, position_kind: 'last_seen', seen_utc: '10:05', minutes_to_go: null, arrives_local: null } });
+    const q = (name) => document.querySelector(`[data-${name}]`);
+    expect(q('summary').textContent).toBe('BA1234 is on its way to London Heathrow; the map shows its last recorded position.');
+    expect(q('pill').textContent).toBe('Last seen 10:05 UTC · 36,000 ft');
+    expect(q('pill').dataset.tone).toBe('muted');
+    expect(q('map').querySelector('.plane')).not.toBeNull();
+    expect(self.FlightMap.pillFor({ status: 'airborne', position_kind: 'last_seen' }).pill).toBe('Last seen');
   });
 
   it('says so when a flight in the air has no ETA yet', () => {
@@ -134,7 +151,7 @@ describe('flight map card', () => {
 
   it('treats a status it does not know as no live position', () => {
     onResult({ structuredContent: { ...FLIGHT, status: 'mystery', position: null, progress: 0 } });
-    expect(document.querySelector('[data-pill]').textContent).toBe('No live position');
+    expect(document.querySelector('[data-pill]').textContent).toBe('No position');
   });
 
   it('shows a landed flight without a landing time as just landed', () => {

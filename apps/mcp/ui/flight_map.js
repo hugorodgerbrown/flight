@@ -140,13 +140,25 @@
   const STATUS = {
     airborne: { pill: 'In the air', tone: 'ok' },
     landed: { pill: 'Landed', tone: 'muted' },
-    lost: { pill: 'No live position', tone: 'muted' },
+    lost: { pill: 'No position', tone: 'muted' },
   };
+
+  // An airborne flight's pill says where its position came from (RAS-140).
+  function pillFor(flight) {
+    const status = STATUS[flight.status] || STATUS.lost;
+    if (flight.status !== 'airborne') return status;
+    if (flight.position_kind === 'estimated') return { pill: 'Estimated position', tone: 'ok' };
+    if (flight.position_kind === 'last_seen') {
+      return { pill: flight.seen_utc ? `Last seen ${flight.seen_utc} UTC` : 'Last seen', tone: 'muted' };
+    }
+    return status;
+  }
 
   function sentence(flight) {
     const to = flight.destination.name;
     if (flight.status === 'landed') return `${flight.flight} landed at ${to}.`;
-    if (flight.status !== 'airborne') return `${flight.flight} has no live position right now.`;
+    if (flight.status !== 'airborne') return `Flightradar24 isn't giving a position for ${flight.flight} right now.`;
+    if (flight.position_kind === 'last_seen') return `${flight.flight} is on its way to ${to}; the map shows its last recorded position.`;
     if (flight.minutes_to_go === null || flight.minutes_to_go === undefined) {
       return `${flight.flight} is on its way to ${to}.`;
     }
@@ -161,7 +173,7 @@
 
   function fill(flight) {
     const q = (name) => document.querySelector(`[data-${name}]`);
-    const status = STATUS[flight.status] || STATUS.lost;
+    const status = pillFor(flight);
     q('summary').textContent = sentence(flight);
     q('route').textContent = `${flight.origin.code} → ${flight.destination.code}`;
     const pill = q('pill');
@@ -176,7 +188,7 @@
     draw(q('map'), flight);
   }
 
-  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence };
+  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence, pillFor };
 
   if (!self.McpApp) return;
   const status = document.querySelector('[data-status]');

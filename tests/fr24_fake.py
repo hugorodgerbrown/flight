@@ -35,6 +35,7 @@ SUMMARY_BA117 = {
     "dest_iata_actual": None,
     "datetime_takeoff": "2026-11-26T08:36:54Z",
     "datetime_landed": None,
+    "last_seen": "2026-11-26T09:31:57Z",
     "flight_ended": False,
 }
 SUMMARY_EI154 = {
@@ -48,6 +49,23 @@ SUMMARY_EI154 = {
     "datetime_landed": "2026-11-26T08:48:11Z",
     "flight_ended": True,
 }
+# The latest points of BA117's track, after it left the live feed over the Atlantic.
+TRACK_BA117 = [
+    {
+        "timestamp": "2026-11-26T09:30:12Z",
+        "lat": 54.8,
+        "lon": -21.1,
+        "alt": 37000,
+        "source": "ADSB",
+    },
+    {
+        "timestamp": "2026-11-26T09:31:57Z",
+        "lat": 54.9,
+        "lon": -21.6,
+        "alt": 37000,
+        "source": "ADSB",
+    },
+]
 # Airports the bundled list doesn't have, answered by Flightradar24's airport endpoint.
 AIRPORTS = {
     "QXA": {
@@ -79,7 +97,9 @@ def install(monkeypatch: Any, settings: Any) -> dict[str, Any]:
 
     ``state["live"]`` and ``state["summaries"]`` are the rows those calls
     answer, filtered by the call's flights or callsigns as Flightradar24
-    filters; ``state["airports"]`` the airports by code; ``state["status"]``
+    filters; ``state["tracks"]`` the track points by fr24_id (``"forbidden"``
+    answers 403, as on a plan without tracks); ``state["airports"]`` the
+    airports by code; ``state["status"]``
     an HTTP status every call answers with instead, if set.
     """
     settings.FR24_API_KEY = "test-key"
@@ -87,6 +107,7 @@ def install(monkeypatch: Any, settings: Any) -> dict[str, Any]:
     state: dict[str, Any] = {
         "live": [],
         "summaries": [],
+        "tracks": {},
         "airports": dict(AIRPORTS),
         "status": None,
         "calls": [],
@@ -104,6 +125,14 @@ def install(monkeypatch: Any, settings: Any) -> dict[str, Any]:
         if path in (fr24.LIVE, fr24.SUMMARY):
             rows = state["live"] if path == fr24.LIVE else state["summaries"]
             answer: Any = {"data": [row for row in rows if asked_for(row, params)]}
+        elif path == fr24.TRACKS:
+            points = state["tracks"].get(params["flight_id"])
+            if points is None or points == "forbidden":
+                status = 403 if points else 404
+                raise urllib.error.HTTPError(
+                    request.full_url, status, "error", {}, io.BytesIO(b"{}")
+                )  # type: ignore[arg-type]
+            answer = [{"fr24_id": params["flight_id"], "tracks": points}]
         else:
             code = path.split("/")[3]
             answer = state["airports"].get(code)

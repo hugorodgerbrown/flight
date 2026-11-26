@@ -9,6 +9,12 @@ returns a plain dict: in the air, landed, or seen taking off but not now
 tracked. Flightradar24 tracks aircraft, not airline schedules, so there is
 an ETA but no delay.
 
+Where the position came from is part of the answer (RAS-140): received
+(``tracked``), worked out by Flightradar24 out of receiver range
+(``estimated``), or, when the live feed leaves out a flight still in the
+air, the latest point of its track (``last_seen``). Nothing here guesses
+why a position is missing.
+
 A lookup is cached for a minute, so a client asking twice doesn't spend
 Flightradar24 credits twice.
 """
@@ -52,6 +58,11 @@ CALLSIGN = re.compile(r"^[A-Z]{3}\d")
 AIRBORNE = "airborne"
 LANDED = "landed"
 LOST = "lost"
+
+# Where a position came from.
+TRACKED = "tracked"
+ESTIMATED = "estimated"
+LAST_SEEN = "last_seen"
 
 
 class NotConnected(Exception):
@@ -127,26 +138,57 @@ def look_up(api: Fr24Api, number: str, now: datetime) -> dict[str, Any] | None:
         "destination": destination.as_place(),
         "departed": iso(took_off),
         "position": None,
+        "position_kind": None,
+        # When Flightradar24 last heard from the aircraft.
+        "seen": iso(when(live.get("timestamp") if live else (summary or {}).get("last_seen"))),
         "altitude_ft": None,
         "minutes_to_go": None,
     }
     if live is not None:
         eta = when(live.get("eta"))
-        position = {"lat": float(live["lat"]), "lon": float(live["lon"])}
-        return flight | {
-            "status": AIRBORNE,
-            "arrives": iso(eta),
-            "minutes_to_go": max(0, round((eta - now).total_seconds() / 60)) if eta else None,
-            "progress": progress(origin, destination, position),
-            "position": position,
-            "altitude_ft": int(live.get("alt") or 0),
-        }
+        estimated = str(live.get("source") or "").upper() == "ESTIMATED"
+        return (
+            flight
+            | {
+                "status": AIRBORNE,
+                "position_kind": ESTIMATED if estimated else TRACKED,
+                "arrives": iso(eta),
+                "minutes_to_go": max(0, round((eta - now).total_seconds() / 60)) if eta else None,
+            }
+            | located(origin, destination, live)
+        )
     # Only a detected landing is a landing: flight_ended means "no longer
     # tracked", which a flight that vanished from coverage also is.
-    landed = when((summary or {}).get("datetime_landed"))
+    summary = summary or {}
+    landed = when(summary.get("datetime_landed"))
     if landed:
         return flight | {"status": LANDED, "arrives": iso(landed), "progress": 1.0}
+    if not summary.get("flight_ended"):
+        # Still being followed, but missing from the live feed: its track
+        # has the latest point Flightradar24 holds.
+        point = api.last_point(str(summary.get("fr24_id") or ""))
+        if point is not None:
+            return (
+                flight
+                | {
+                    "status": AIRBORNE,
+                    "position_kind": LAST_SEEN,
+                    "seen": iso(when(point.get("timestamp"))) or flight["seen"],
+                    "arrives": None,
+                }
+                | located(origin, destination, point)
+            )
     return flight | {"status": LOST, "arrives": None, "progress": 0.0}
+
+
+def located(origin: Airport, destination: Airport, row: dict[str, Any]) -> dict[str, Any]:
+    """Return the position, altitude and progress in a live row or track point."""
+    position = {"lat": float(row["lat"]), "lon": float(row["lon"])}
+    return {
+        "position": position,
+        "altitude_ft": int(row.get("alt") or 0),
+        "progress": progress(origin, destination, position),
+    }
 
 
 def code_of(row: dict[str, Any], end: str) -> str:

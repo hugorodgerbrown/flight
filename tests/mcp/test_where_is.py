@@ -8,7 +8,7 @@ from freezegun import freeze_time
 
 from apps.mcp.tools import ToolError, _duration, where_is
 from tests import fr24_fake
-from tests.fr24_fake import LIVE_BA117, SUMMARY_BA117, SUMMARY_EI154
+from tests.fr24_fake import LIVE_BA117, SUMMARY_BA117, SUMMARY_EI154, TRACK_BA117
 
 NOW = datetime(2026, 11, 26, 9, 32, tzinfo=UTC)
 
@@ -39,7 +39,7 @@ def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
     fr24["live"] = [LIVE_BA117]
     fr24["summaries"] = [SUMMARY_BA117]
     described = next(t for t in rpc("tools/list")["tools"] if t["name"] == "where_is")
-    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v2"
+    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v3"
 
     result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": " ba 117 "}})
     (content,) = result["content"]
@@ -63,6 +63,8 @@ def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
     assert flight["departed_local"] == "08:36"
     assert flight["arrives_local"] == "11:04"
     assert flight["minutes_to_go"] == 393
+    assert flight["position_kind"] == "tracked"
+    assert flight["seen_utc"] == "09:32"
     assert "delay_minutes" not in flight
 
 
@@ -81,16 +83,56 @@ def test_a_landed_flight_says_where_and_when(fr24: dict[str, Any]) -> None:
 
 
 @freeze_time(NOW)
-def test_a_flight_seen_leaving_but_not_now_tracked_says_so(fr24: dict[str, Any]) -> None:
-    """Took off, no live position, not landed: say what is known, nothing more."""
+def test_an_estimated_position_is_said_to_be_one(rpc: Any, fr24: dict[str, Any]) -> None:
+    """Out of receiver range Flightradar24 estimates the position; the answer says so."""
+    fr24["live"] = [{**LIVE_BA117, "source": "ESTIMATED"}]
     fr24["summaries"] = [SUMMARY_BA117]
     flight = where_is(None, {"flight": "BA117"})
+    assert flight["status"] == "airborne"
+    assert flight["position_kind"] == "estimated"
+    assert "Flightradar24 estimates it's" in flight["markdown"]
+    assert "worked out, not received" in flight["markdown"]
+
+
+@freeze_time(NOW)
+def test_a_flight_missing_from_the_live_feed_shows_its_last_track_point(
+    fr24: dict[str, Any],
+) -> None:
+    """Still flying but not in the live feed (RAS-140): the track's latest point is shown."""
+    fr24["summaries"] = [SUMMARY_BA117]
+    fr24["tracks"] = {"42bc74bd": TRACK_BA117}
+    flight = where_is(None, {"flight": "BA117"})
+    assert flight["status"] == "airborne"
+    assert flight["position_kind"] == "last_seen"
+    assert flight["position"] == {"lat": 54.9, "lon": -21.6}
+    assert flight["altitude_ft"] == 37000
+    assert flight["seen_utc"] == "09:31"
+    assert 0.2 < flight["progress"] < 0.5
+    text = flight["markdown"]
+    assert "the last position it recorded, at 09:31 UTC" in text
+    assert "no arrival estimate for it right now" in text
+    assert fr24["params"][-1] == {"flight_id": "42bc74bd"}
+
+
+@freeze_time(NOW)
+@pytest.mark.parametrize("track", [None, "forbidden", []])
+def test_no_position_anywhere_is_said_plainly_without_a_reason(
+    fr24: dict[str, Any], track: Any
+) -> None:
+    """No live row and no track (none, not on the plan, or empty): say so, guess nothing."""
+    fr24["summaries"] = [SUMMARY_BA117]
+    if track is not None:
+        fr24["tracks"] = {"42bc74bd": track}
+    flight = where_is(None, {"flight": "BA117"})
     assert flight["markdown"].startswith(
-        "Flightradar24 has no live position for BA117 right now. Its latest flight took off "
-        "from London Heathrow Airport (LHR) at 08:36 local time for John F Kennedy "
-        "International Airport (JFK) and hasn't been reported landed."
+        "Flightradar24 isn't giving a position for BA117 right now, and doesn't say why. "
+        "Its latest flight took off from London Heathrow Airport (LHR) at 08:36 local time "
+        "for John F Kennedy International Airport (JFK) and hasn't been reported landed. "
+        "Flightradar24 last heard from it at 09:31 UTC."
     )
     assert flight["status"] == "lost"
+    for guess in ("range", "ocean", "Atlantic", "coverage"):
+        assert guess not in flight["markdown"]
 
 
 @freeze_time(NOW)
@@ -100,7 +142,7 @@ def test_a_flight_without_an_eta_or_take_off_says_so(fr24: dict[str, Any]) -> No
     text = where_is(None, {"flight": "BA117"})["markdown"]
     assert "% of the way." in text
     assert "took off" not in text
-    assert "Flightradar24 has no arrival estimate for it yet." in text
+    assert "Flightradar24 has no arrival estimate for it right now." in text
 
 
 @freeze_time(NOW)
@@ -116,9 +158,12 @@ def test_a_flight_found_by_callsign_names_its_flight_number(fr24: dict[str, Any]
 def test_a_flight_that_ended_without_a_landing_isnt_called_landed(fr24: dict[str, Any]) -> None:
     """flight_ended alone means "no longer tracked", not "landed"."""
     fr24["summaries"] = [{**SUMMARY_BA117, "flight_ended": True}]
+    fr24["tracks"] = {"42bc74bd": TRACK_BA117}
     flight = where_is(None, {"flight": "BA117"})
     assert flight["status"] == "lost"
     assert "hasn't been reported landed" in flight["markdown"]
+    # An ended flight's old track isn't passed off as where it is now.
+    assert "/flight-tracks" not in fr24["calls"]
 
 
 def test_an_unknown_flight_explains_codeshares(fr24: dict[str, Any]) -> None:
