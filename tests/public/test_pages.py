@@ -7,6 +7,7 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
+from apps.public import conf
 from apps.public.pages import PAGES, page_as_markdown, to_markdown
 
 
@@ -79,3 +80,34 @@ def test_the_privacy_notice_says_what_is_kept(
         assert ("A key made from your email address" in text) is not keeps_email
         assert ("Your address itself is never stored" in text) is not keeps_email
         assert ("Your email address</strong>" in html) is keeps_email
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("name", ["terms", "privacy"])
+def test_legal_pages_are_flights_own(client: Client, name: str) -> None:
+    """No template placeholder; they name who runs Flight, how to reach them and the date."""
+    html = unescape(client.get(reverse(f"public:{name}")).content.decode())
+    assert "Placeholder" not in html
+    assert "Last updated: not yet" not in html
+    assert f"run by {conf.OPERATOR}" in html
+    assert f'href="mailto:{conf.CONTACT_EMAIL}"' in html
+    assert f"Last updated: {conf.LEGAL_UPDATED}" in html
+
+
+def test_the_terms_say_the_data_is_not_for_safety_use() -> None:
+    """The one clause Flight must never lose: estimates, and not for operational use."""
+    text = page_as_markdown("terms")["markdown"]
+    assert "never use Flight for safety, navigation or operational decisions" in text
+    assert "Positions can be estimated or out of date." in text
+    assert "can't tell you whether a flight is delayed" in text
+    assert "law of England and Wales" in text
+
+
+@pytest.mark.parametrize("domain", ["", "flight.example"])
+def test_the_privacy_notice_names_fivebar_only_when_counting(settings: Any, domain: str) -> None:
+    """The notice names fivebar as a recipient only while FIVEBAR_DOMAIN is set."""
+    settings.FIVEBAR_DOMAIN = domain
+    text = page_as_markdown("privacy")["markdown"]
+    assert ("**fivebar** counts visits" in text) is bool(domain)
+    assert "Information Commissioner's Office" in text
+    assert "Looking up a flight saves nothing about you." in text

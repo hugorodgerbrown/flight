@@ -1,16 +1,53 @@
 {# The terms of service: shared by the page and apps.public.pages (the MCP tools). #}
-<p class="notice">Placeholder. Replace these terms with your own, reviewed by a lawyer, before launch.</p>
+{# site is apps.public.context_processors.site: who runs Flight and how to reach them (apps/public/conf.py). #}
 <h1>Terms of service</h1>
-<p class="meta">Last updated: not yet</p>
-<h2>Using {{ pwa.name }}</h2>
-<p>You need an account, made with an email address you control. Keep access to that email and to any device with your passkey: either can sign in as you.</p>
-<h2>Your content</h2>
-<p>What you write stays yours. You give us permission to store it and show it back to you, which is what the service does.</p>
-<h2>Acceptable use</h2>
-<p>Don't use the service to break the law, to harm others, or to disrupt it for other people.</p>
-<h2>Availability</h2>
-<p>We try to keep the service running but can't promise it never stops. Copies kept on your device for offline use are not a backup.</p>
-<h2>Closing your account</h2>
-<p>You can ask us to close your account at any time. We may close an account that breaks these terms.</p>
-<h2>Changes</h2>
-<p>If these terms change we'll update the date above, and tell you about significant changes before they apply.</p>
+<p class="meta">Last updated: {{ site.legal_updated }}</p>
+<h2>The short version</h2>
+<ul>
+  <li>{{ pwa.name }} shows where a flight is, from Flightradar24's live data. <strong>Positions and times are estimates: never use {{ pwa.name }} for safety, navigation or operational decisions</strong>, and check with your airline before you travel or set off for the airport.</li>
+  <li>Use it for your own trips and the people you're meeting. Don't use it to follow someone who doesn't know.</li>
+  <li>It's free, and offered as it is. We'll try to keep it running, but can't promise it never stops.</li>
+</ul>
+<h2>Who we are</h2>
+<p>{{ pwa.name }} is run by {{ site.operator }} ("we", "us"){% if site.address %}, {{ site.address }}{% endif %}. Email <a href="mailto:{{ site.contact_email }}">{{ site.contact_email }}</a>. By using {{ pwa.name }}, on the website, in the installed app, or through an AI assistant such as Claude or ChatGPT, you agree to these terms. Our <a href="{% url 'public:privacy' %}">privacy notice</a> explains what we keep about you.</p>
+<h2>Your account</h2>
+<p>You need an account to use {{ pwa.name }}'s features beyond the public pages. You sign in with a code or link sent to your email address, or with a passkey; there are no passwords. Keep access to that email and to any device with your passkey: either can sign in as you, and you're responsible for what's done with your account. Tell us straight away if you think someone else has used it.</p>
+<p>You must be 13 or over to make an account. While {{ pwa.name }} is new, we may limit who can make one.</p>
+<h2>The flight data</h2>
+<p>{{ pwa.name }}'s flight data comes from Flightradar24, which tracks aircraft from their own position reports, from receivers on the ground and by estimating. It belongs to Flightradar24 and its sources; we show it to you under our agreement with Flightradar24, for your personal use. Please understand its limits:</p>
+<ul>
+  <li><strong>Positions can be estimated or out of date.</strong> Over oceans and remote areas, a position may be Flightradar24's estimate, or the last place the aircraft was seen. {{ pwa.name }} tells you when it is.</li>
+  <li><strong>Times are estimates, not the airline's.</strong> Flightradar24 doesn't have airline schedules, so {{ pwa.name }} can't tell you whether a flight is delayed, cancelled or diverted, or which gate or terminal it uses.</li>
+  <li><strong>Some flights aren't shown</strong>, including some military, private and blocked aircraft, and flights booked under another airline's codeshare number.</li>
+  <li><strong>The data can be wrong or missing</strong>, without warning.</li>
+</ul>
+<p><strong>{{ pwa.name }} is for information only. Don't rely on it for air traffic, navigation, safety, emergency or other operational purposes, or for any decision where a wrong answer could cause harm or loss.</strong> For travel, your airline and the airport are the authority.</p>
+<p>Don't copy, scrape, resell or republish the flight data, or use {{ pwa.name }} to build a database or a service of your own.</p>
+<h2>Using {{ pwa.name }} with an AI assistant</h2>
+<p>You can connect {{ pwa.name }} to an AI assistant, such as Claude or ChatGPT, so it can look up flights for you. The assistant is a separate service, made by another company, under its own terms and privacy policy. An assistant can misread or misstate what {{ pwa.name }} tells it: when it matters, check the map card or {{ pwa.name }} itself. You can disconnect an assistant at any time.</p>
+<h2>Sharing a flight</h2>
+<p>You can make a link to a flight that anyone can open without an account. Anyone who has the link can see where that flight is, its route and its times, until the link ends, 24 hours after the flight lands, or until you stop sharing it. Think about who you send it to, as they can pass it on. Share only your own flights, or flights you have the traveller's agreement to share.</p>
+<h2>Alerts</h2>
+<p>You can ask {{ pwa.name }} to tell you, by push notification or email, when a flight you follow takes off and lands. Alerts depend on Flightradar24, on push and email services and on your device, so they can arrive late, or not at all. Don't rely on an alert to be somewhere on time.</p>
+<h2>What you mustn't do</h2>
+<ul>
+  <li>Use {{ pwa.name }} to track, watch or follow a person without their knowledge, or to harass, threaten or harm anyone.</li>
+  <li>Break the law, or help anyone else to.</li>
+  <li>Access {{ pwa.name }} by automated means beyond an AI assistant acting for you, get around its limits, or put an unreasonable load on it.</li>
+  <li>Try to get into another person's account, or into our systems, or probe them for weaknesses (if you find one, please tell us: see <a href="/.well-known/security.txt">security.txt</a>).</li>
+  <li>Copy, sell or rebrand {{ pwa.name }} or its data.</li>
+</ul>
+<h2>The service</h2>
+<p>{{ pwa.name }} is free. We may change it, add or remove features, limit how much it can be used, or stop it, at any time; we'll give notice of anything significant where we can. Copies kept on your device for offline use are not a backup. {{ pwa.name }}'s name, logo, design and code are ours; these terms don't give you any rights in them.</p>
+<h2>Our responsibility to you</h2>
+<p>We provide {{ pwa.name }} as it is and as available, using reasonable care and skill, but we don't promise that it, or the flight data, will be accurate, complete, timely or always available.</p>
+<p>We aren't responsible for losses that come from relying on the flight data or on an alert, such as a missed flight, connection or meeting, or travel and accommodation costs; for losses that weren't foreseeable; or for business losses. If we are responsible to you for anything else, our total liability is limited to £100.</p>
+<p>Nothing in these terms limits our liability for death or personal injury caused by our negligence, for fraud, or for anything else the law doesn't allow us to limit. If you're a consumer, nothing in these terms affects your legal rights.</p>
+<h2>Ending</h2>
+<p>You can stop using {{ pwa.name }} and delete your account at any time, from the account page. We may suspend or close an account that breaks these terms, or if we have to stop the service; where we can, we'll tell you why first.</p>
+<h2>Changes to these terms</h2>
+<p>If these terms change we'll update the date at the top, and tell you about significant changes before they apply. If you keep using {{ pwa.name }} after that, the new terms apply; if you don't agree to them, you can delete your account.</p>
+<h2>The law</h2>
+<p>These terms are governed by the law of England and Wales, and its courts can hear any dispute about them. If you live in Scotland or Northern Ireland, you can also bring proceedings in your own courts. If any part of these terms can't be enforced, the rest still applies.</p>
+<h2>Contact</h2>
+<p>Questions about these terms: <a href="mailto:{{ site.contact_email }}">{{ site.contact_email }}</a>.</p>

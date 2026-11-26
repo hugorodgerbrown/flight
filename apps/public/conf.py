@@ -6,6 +6,15 @@ links"); the tags in ``templatetags/site_footer.py`` draw them. Set once by
 the project template from its answers; edit freely.
 """
 
+# Who runs the site, as the terms and privacy notice name them: the
+# controller under UK GDPR. A company gives its registered name, number and
+# registered office; a person their name and a postal address for notices.
+OPERATOR = "Hugo Rodger-Brown"
+OPERATOR_ADDRESS = "[ADD: postal address]"
+
+# The date the terms and privacy notice last changed; bump it with them.
+LEGAL_UPDATED = "26 November 2026"
+
 # Where people write to us: the help page, the terms and the privacy
 # notice all give this address.
 CONTACT_EMAIL = "support@ultraniche.ai"

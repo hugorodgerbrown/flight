@@ -24,13 +24,13 @@ def home(request: HttpRequest) -> HttpResponse:
 
 @require_safe
 def terms(request: HttpRequest) -> HttpResponse:
-    """The terms of service (placeholder)."""
+    """The terms of service."""
     return render(request, "public/terms.html")
 
 
 @require_safe
 def privacy(request: HttpRequest) -> HttpResponse:
-    """The privacy notice (placeholder, but true of the template as shipped)."""
+    """The privacy notice: what is kept, why, for how long, and your rights."""
     return render(request, "public/privacy.html", {"keeps_email": settings.ACCOUNTS_KEEP_EMAIL})
 
 

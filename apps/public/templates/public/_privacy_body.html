@@ -1,33 +1,80 @@
 {# The privacy notice: shared by the page and apps.public.pages (the MCP tools). #}
-{# keeps_email is settings.ACCOUNTS_KEEP_EMAIL: the notice says what this app's code stores. #}
-<p class="notice">Placeholder. It describes the template as shipped; update it as the product changes, and have it reviewed before launch.</p>
+{# keeps_email is settings.ACCOUNTS_KEEP_EMAIL and analytics.domain is FIVEBAR_DOMAIN: the notice says what this app's code stores. #}
+{# site is apps.public.context_processors.site: who runs Flight and how to reach them (apps/public/conf.py). #}
 <h1>Privacy notice</h1>
-<p class="meta">Last updated: not yet</p>
-<h2>What we keep</h2>
+<p class="meta">Last updated: {{ site.legal_updated }}</p>
+<h2>The short version</h2>
+<ul>
+  <li><strong>Looking up a flight saves nothing about you.</strong> Not the flight, not when you asked.</li>
+  <li>{% if keeps_email %}We keep your email address, so we can sign you in and send you the alerts you ask for.{% else %}We don't keep your email address: only a one-way code made from it, so we can find your account when you sign in.{% endif %}</li>
+  <li>We keep only what the features you use need, we don't sell anything to anyone, and there are no advertising or tracking cookies.</li>
+  <li>You can delete your account, and everything in it, yourself at any time.</li>
+</ul>
+<h2>Who we are</h2>
+<p>{{ pwa.name }} is run by {{ site.operator }} ("we"){% if site.address %}, {{ site.address }}{% endif %}. We are the controller of the personal data described here, under the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018. Write to us about anything in this notice at <a href="mailto:{{ site.contact_email }}">{{ site.contact_email }}</a>.</p>
+<h2>What we keep, and why</h2>
+<h3>Your account</h3>
 <ul>
 {% if keeps_email %}
-  <li><strong>Your email address</strong>, to identify your account and to email you.</li>
+  <li><strong>Your email address</strong>, to identify your account, to send you sign-in codes and to send the email alerts you turn on.</li>
 {% else %}
   <li><strong>A key made from your email address</strong>: a one-way code that finds your account each time you sign in. Your address itself is never stored: it is used to send the sign-in email, then discarded.</li>
 {% endif %}
   <li><strong>A masked address</strong>: the first letter and the domain, such as h•••@example.com, so you can see which account you're signed in to.</li>
-  <li><strong>Sign-in requests</strong>: {% if keeps_email %}the address{% else %}the key and the masked address{% endif %}, when you asked to sign in, and whether you did. Deleted once they expire.</li>
+  <li><strong>Sign-in requests</strong>: {% if keeps_email %}the address{% else %}the key and the masked address{% endif %}, when you asked to sign in, and whether you did. The code and link are stored only as one-way hashes. Requests are deleted once they expire, within a day.</li>
   <li><strong>Passkeys</strong>: a public key for each one you add, its name, and when it was last used. Your device keeps the private key; we never see it, or your face or fingerprint.</li>
-  <li><strong>What you write</strong> in the app.</li>
+  <li><strong>When your account was made</strong> and when you last signed in.</li>
 </ul>
-<h2>On your device</h2>
-<p>The app stores pages you've opened and anything you write while offline, so it works without a connection. Signing out removes the saved pages.</p>
-<h2>Cookies</h2>
-<p>One cookie keeps you signed in, and one protects forms from forgery. There are no analytics or advertising cookies.</p>
+<p>Why: to provide the service you signed up for (the lawful basis is our contract with you).</p>
+<h3>Looking up a flight</h3>
+<p>When you ask where a flight is, on the website or from Claude or ChatGPT, we send the flight number, and nothing about you, to Flightradar24, and keep its answer for about a minute so that several people asking about the same flight share one lookup. We don't record who asked. Our server logs may note the flight number, without your account.</p>
+<h3>Flights you follow, and alerts</h3>
+<p>If you follow a flight to be told when it takes off and lands, we keep the flight number, which alerts you chose (push, email or both) and when each alert was sent, until the day after it lands. If you turn on notifications on a device, your browser gives us a push address for that device, with its keys, and we keep it, with the browser's name, until you turn notifications off or the push service tells us it no longer works. Push messages are delivered by your browser's push service (Apple, Google or Mozilla), which sees that a message was sent to your device{% if keeps_email %}; email alerts go through our email provider{% endif %}.</p>
+<p>Why: to send the alerts you asked for (contract). Your device asks for your permission before it lets us send push notifications, and you can withdraw it in your browser or device settings at any time.</p>
+<h3>Sharing a live link to a flight</h3>
+<p>If you share a flight, we keep the link's random code, the flight it shows, when it was made and when it ends. Anyone with the link can see that flight's live position, route and times, without signing in. The page doesn't show your name or email address. A link stops working 24 hours after the flight lands, or sooner if you stop sharing it from your account page; we then delete it.</p>
+<p>Why: to show the flight to the people you chose to send the link to (contract). Please share only your own flights, or ones you have the traveller's agreement to share.</p>
+<h3>Connecting Claude or ChatGPT</h3>
+<p>When you connect an AI assistant, we keep a record of the connection: the app's name, the access it was given and when, and the tokens that let it act for you. To end a connection, remove {{ pwa.name }} in the assistant's settings; deleting your account ends them all. We receive only what the assistant sends to {{ pwa.name }}'s tools, such as a flight number; we never see the rest of your conversation. What you say to the assistant is handled by its maker, Anthropic or OpenAI, under their own privacy policy.</p>
+<p>Why: to let the assistant you connected use your account (contract).</p>
+<h3>Keeping the service safe</h3>
+<p>Our servers log each request: your IP address, the date and time, the page asked for (without any query), the response and your browser's description of itself. We also count recent requests by IP address to stop abuse, and keep a short record of recent changes so that a repeated request isn't applied twice. Logs are kept by our hosting provider for a short time, normally no more than 30 days; the counts and records are deleted within a day.</p>
+<p>Why: to keep {{ pwa.name }} secure and working (our legitimate interest in protecting the service and the people who use it).</p>
 {% if analytics.domain %}
-<h2>Visitor counts</h2>
+<h3>Visitor counts</h3>
 <p>We count visits with <strong>fivebar</strong>, which sets no cookies. For each page you open it receives the page, the page you came from, your browser, device type and country, and when you create an account. It keeps daily totals only, which can't be traced back to you; your IP address and browser details tell visitors apart for one day and are not kept. Addresses that hold a sign-in link or a record are counted without it.{% if analytics.counts_mcp %} When an app you've connected, such as Claude, uses one of our tools, fivebar receives the tool's name, the app's name and a code that tells accounts apart without identifying yours; never what you asked or what came back.{% endif %} See <a href="https://fiveb.ar/privacy">fivebar's privacy policy</a>.</p>
+<p>Why: to understand how {{ pwa.name }} is used so we can improve it (legitimate interest), in a way that doesn't identify you.</p>
 {% endif %}
-<h2>Who else sees it</h2>
-<p>Our hosting and email providers{% if analytics.domain %}, and fivebar for visitor counts,{% endif %} process data on our behalf. We don't sell it or share it with anyone else.</p>
+<h2>Cookies and your device</h2>
+<p>We set two cookies, both strictly necessary, so they don't need your consent: one keeps you signed in (for up to 90 days, or until you sign out), and one protects forms from forgery. There are no analytics, advertising or third-party cookies.</p>
+<p>The installed app stores pages you've opened and anything you do while offline on your device, so it works without a connection. Signing out removes them.</p>
+<h2>Who else handles your data</h2>
+<p>We don't sell your data or share it for advertising. These providers process it for us, only to run {{ pwa.name }}, under contracts that require them to protect it:</p>
+<ul>
+  <li><strong>Render</strong> hosts the service and its database, in Frankfurt, Germany.</li>
+  <li><strong>Cloudflare</strong> carries traffic to and from the site and protects it from attacks.</li>
+  <li><strong>Our email provider</strong> delivers sign-in codes{% if keeps_email %} and email alerts{% endif %}.</li>
+{% if analytics.domain %}
+  <li><strong>fivebar</strong> counts visits, as described above.</li>
+{% endif %}
+</ul>
+<p><strong>Flightradar24</strong> provides the flight data. It receives flight numbers from us, never anything about you. We may also disclose data if the law requires it.</p>
+<p>Some of these providers are based in the United States, or have staff or systems there. Where data leaves the UK, it is protected by UK adequacy regulations (including the UK Extension to the EU-US Data Privacy Framework) or by the UK's International Data Transfer Addendum to the standard contractual clauses.</p>
+<h2>How long we keep it</h2>
+<ul>
+  <li>Your account, passkeys and connections: until you delete them, or your account.</li>
+  <li>Sign-in requests: deleted within a day of expiring.</li>
+  <li>Flights you follow: until the day after the flight lands.</li>
+  <li>Share links: until the link ends or you stop it.</li>
+  <li>Server logs: normally no more than 30 days.</li>
+</ul>
+<p>We may delete an account that hasn't been used for two years, after telling you if we can.</p>
 <h2>Your rights</h2>
-<p>You can delete your account and everything in it yourself, at any time, from the account page: sign in, open Account, and choose <strong>Delete my account</strong>. It happens straight away{% if analytics.domain %}; fivebar's daily totals, which can't be traced back to you, stay{% endif %}.</p>
-<p>We keep no backups, so a deleted account can't be brought back, by you or by us.</p>
-<p>You can also ask for a copy of your data.{% if not keeps_email %} Because we don't keep your address, we can't email you, and we find your account by asking you to sign in.{% endif %}</p>
-<h2>Contact</h2>
-<p>Placeholder: add a contact address.</p>
+<p>You have the right to see the personal data we hold about you and get a copy of it, to have it corrected, to have it deleted, to restrict or object to how we use it, and to take it elsewhere. Where we rely on your consent, you can withdraw it at any time.</p>
+<p>You can delete your account and everything in it yourself, at any time, from the account page: sign in, open Account, and choose <strong>Delete my account</strong>. It happens straight away{% if analytics.domain %}; fivebar's daily totals, which can't be traced back to you, stay{% endif %}. We keep no backups, so a deleted account can't be brought back, by you or by us.</p>
+<p>For anything else, write to <a href="mailto:{{ site.contact_email }}">{{ site.contact_email }}</a>. We'll answer within a month.{% if not keeps_email %} Because we don't keep your address, we'll ask you to sign in, so we know the account is yours.{% endif %}</p>
+<p>If you're unhappy with how we've handled your data, please tell us first. You can also complain to the Information Commissioner's Office (ICO), the UK's data protection regulator, at <a href="https://ico.org.uk/make-a-complaint/">ico.org.uk</a> or on 0303 123 1113.</p>
+<h2>Children</h2>
+<p>{{ pwa.name }} is not meant for children under 13, and we don't knowingly keep data about them. If you think a child has made an account, tell us and we'll delete it.</p>
+<h2>Changes to this notice</h2>
+<p>When this notice changes we'll update the date at the top, and tell you about significant changes before they apply, in the app or by email if we can.</p>
