@@ -228,6 +228,25 @@ def test_staff_only_policy() -> None:
     assert not staff_only(SimpleNamespace(is_active=False, is_staff=True))
 
 
+def test_flight_lets_only_staff_connect(settings: Any) -> None:
+    """Locked for launch (RAS-148): the policy is staff_only, not any active account."""
+    assert settings.MCP_AUTH["CAN_CONNECT"] == "apps.mcp.policy.staff_only"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("is_staff", "allowed"), [(True, True), (False, False)])
+def test_the_endpoint_serves_only_staff(client: Client, is_staff: bool, allowed: bool) -> None:
+    """A signed-in account that isn't staff is refused, even with a valid token."""
+    token = TestMCPAuth().token_for(UserFactory.create(is_staff=is_staff))
+    response = client.post(
+        "/mcp",
+        json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"}),
+        content_type="application/json",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert (response.status_code == 200) is allowed
+
+
 @pytest.mark.django_db
 def test_endpoint_refuses_anonymous_calls(client: Client) -> None:
     """No bearer token, no tools: a 401 that starts OAuth discovery."""

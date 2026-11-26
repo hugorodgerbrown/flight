@@ -24,7 +24,7 @@ What is on by default, and what checks it.
 | Known CVEs in runtime Python deps and npm packages | pip-audit, npm audit (`bin/npm-audit`) | `tox -e audit` (CI and weekly) |
 | Secrets in commits | gitleaks | pre-commit and CI |
 | Dependency updates | Dependabot (uv, npm, actions) | weekly PRs |
-| MCP: OAuth 2.1, PKCE, audience-bound tokens; who may connect is `MCP_AUTH["CAN_CONNECT"]` (`mcp_auth.policy.active_user`) | `mcp-auth` | `tests/mcp/test_mcp.py` (the shared contract) |
+| MCP: OAuth 2.1, PKCE, audience-bound tokens; who may connect is `MCP_AUTH["CAN_CONNECT"]` (`apps.mcp.policy.staff_only` while Flight is locked) | `mcp-auth` | `tests/mcp/test_mcp.py` (the shared contract) |
 | MCP App views: self-contained, no network, data drawn as text only | `apps/mcp/resources.py`, `apps/mcp/ui/` | `tests/mcp/test_mcp.py`, `tests/js/mcp/` |
 
 ## npm advisories

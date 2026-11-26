@@ -309,7 +309,9 @@ OAUTH2_PROVIDER = oauth2_settings(
     scope_description="Look up where flights are",
 )
 MCP_AUTH = {
-    "CAN_CONNECT": "mcp_auth.policy.active_user",
+    # Locked for launch: only staff accounts (ticked in the admin) may connect
+    # (docs/decisions/flight-launches-with-mcp-locked-to-staff.md).
+    "CAN_CONNECT": "apps.mcp.policy.staff_only",
     # The consent page's "Signed in as": the masked address, not the key.
     "ACCOUNT_NAME": "apps.accounts.models.account_name",
     # ChatGPT's callbacks as well as Claude's and loopback.
