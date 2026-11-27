@@ -3,10 +3,10 @@
   <h2>Sharing</h2>
   {% if live_shares %}
     <ul class="item-list">
-      {% for item, link in live_shares %}
+      {% for item in live_shares %}
         <li class="item">
           <div>
-            <p class="item__title"><a href="{{ link }}">{{ item.to_string }}</a></p>
+            <p class="item__title"><a href="{% url 'shares:page' item.token %}">{{ item.to_string }}</a></p>
             <p class="meta">Anyone with the link can follow it for {{ item.expires_at|timeuntil }} more.</p>
           </div>
           <form method="post" action="{% url 'shares:stop' item.uuid %}">

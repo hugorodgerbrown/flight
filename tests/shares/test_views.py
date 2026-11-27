@@ -224,7 +224,7 @@ def test_the_account_page_lists_live_links_and_stops_them(
     ShareFactory.create(user=UserFactory.create())
     content = signed_in.get(reverse("accounts:account")).content.decode()
     assert content.count("Stop sharing</button>") == 1
-    assert shares.url(mine) in content
+    assert f'href="{page_of(mine)}"' in content
     response = signed_in.post(reverse("shares:stop", args=[mine.uuid]))
     assert response["Location"] == reverse("accounts:account") + "#sharing"
     assert not Share.objects.filter(pk=mine.pk).exists()

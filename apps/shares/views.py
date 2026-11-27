@@ -179,6 +179,4 @@ def stop(request: HttpRequest, uuid: str) -> HttpResponse:
 def account_context(request: HttpRequest) -> dict[str, Any]:
     """Return the account page's Sharing section: the links still live."""
     user = signed_in_user(request)
-    return {
-        "live_shares": [(item, shares.url(item)) for item in Share.objects.for_user(user).live()]
-    }
+    return {"live_shares": list(Share.objects.for_user(user).live())}
