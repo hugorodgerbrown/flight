@@ -10,7 +10,8 @@ from django.utils import timezone
 from py_vapid import Vapid
 
 from apps.alerts.models import Follow
-from tests.factories import FollowFactory
+from apps.shares.models import Share
+from tests.factories import FollowFactory, ShareFactory
 from tests.fr24_fake import LIVE_BA117, SUMMARY_BA117
 
 
@@ -43,6 +44,15 @@ def test_with_commit_it_checks_sends_and_clears(fr24: dict[str, Any], pushes: li
     assert "BA117 LHR-JFK: take off" in out
     assert "Checked 1 follow in 2 calls: 1 alert sent, 0 given up, 1 cleared." in out
     assert list(Follow.objects.values_list("flight", flat=True)) == ["BA117"]
+
+
+@pytest.mark.django_db
+def test_with_commit_it_deletes_ended_share_links(fr24: dict[str, Any]) -> None:
+    """Share links are deleted once they end, as the privacy notice says."""
+    live = ShareFactory.create()
+    ShareFactory.create(expires_at=timezone.now() - timedelta(minutes=1))
+    run("--commit")
+    assert list(Share.objects.all()) == [live]
 
 
 @pytest.mark.django_db

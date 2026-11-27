@@ -85,10 +85,11 @@ def test_home_says_what_flight_does(client: Client, with_mcp: str) -> None:
     assert "note" not in content.lower().replace("hero__note", "")
 
 
-def test_features_not_built_yet_say_so(client: Client) -> None:
-    """Live sharing is shown as coming, in words; alerts have shipped (RAS-144)."""
+def test_every_job_has_shipped(client: Client) -> None:
+    """Alerts (RAS-144) and live sharing (RAS-145) have shipped: nothing says "Coming soon"."""
     content = client.get(reverse("public:home")).content.decode()
-    assert content.count('<span class="tag">Coming soon</span>') == 1
+    assert "Coming soon" not in content
+    assert "<h2>Share a live link</h2>" in content
     assert "<h2>Hear when it takes off and lands</h2>" in content
     assert "ask Claude to follow it" in content
 

@@ -17,6 +17,7 @@ from apps.accounts.models import (
 )
 from apps.alerts.models import Follow, PushSubscription
 from apps.flights.models import Airport
+from apps.shares.models import KEEP_UNLANDED, Share
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -130,3 +131,51 @@ class PushSubscriptionFactory(factory.django.DjangoModelFactory):
     p256dh = "BPlaceholderPublicKey"
     auth = "placeholder-auth"
     device = "Safari on iPhone"
+
+
+# A share's card, as shares.card makes it from a lookup of BA117 over the Atlantic.
+SHARE_CARD = {
+    "flight": "BA117",
+    "operated_as": "BA117",
+    "status": "airborne",
+    "origin": {
+        "code": "LHR",
+        "name": "London Heathrow Airport",
+        "city": "London",
+        "lat": 51.47,
+        "lon": -0.46,
+        "tz": "Europe/London",
+    },
+    "destination": {
+        "code": "JFK",
+        "name": "John F Kennedy International Airport",
+        "city": "New York",
+        "lat": 40.64,
+        "lon": -73.78,
+        "tz": "America/New_York",
+    },
+    "position": {"lat": 54.0, "lon": -30.0},
+    "progress": 0.45,
+    "altitude_ft": 37000,
+    "seen": "2026-11-26T11:00:00+00:00",
+    "arrives": "2026-11-26T16:04:39+00:00",
+    "arrives_local": "11:04",
+    "departed_local": "08:36",
+    "minutes_to_go": 304,
+    "path": [[51.47, -0.46], [54.0, -30.0]],
+}
+
+
+class ShareFactory(factory.django.DjangoModelFactory):
+    """A live link to BA117, in the air."""
+
+    class Meta:
+        """Factory metadata."""
+
+        model = Share
+
+    user = factory.SubFactory(UserFactory)
+    flight = "BA117"
+    fr24_id = "42bc74bd"
+    snapshot = factory.LazyFunction(lambda: dict(SHARE_CARD))
+    expires_at = factory.LazyFunction(lambda: timezone.now() + KEEP_UNLANDED)

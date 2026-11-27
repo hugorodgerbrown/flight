@@ -21,6 +21,7 @@ from apps.alerts.templatetags.alerts import status_label, times
 from apps.flights import lookup
 from apps.public.pages import page_as_markdown
 from apps.pwa import conf
+from apps.shares import shares
 
 
 class ToolError(Exception):
@@ -259,6 +260,34 @@ def following(user: Any, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def share_flight(user: Any, args: dict[str, Any]) -> dict[str, Any]:
+    """Make a live link to a flight that anyone can open, without signing in (RAS-145)."""
+    try:
+        item, created = shares.share(user, str(args.get("flight", "")))
+    except follows.NotAFlightNumber:
+        raise ToolError("flight must be a flight number such as BA1234.") from None
+    except shares.NothingToShare as exc:
+        raise ToolError(
+            f"{exc} isn't in the air or landed in the last day, so there's no flight to share "
+            "yet. A link can be made once it has taken off."
+        ) from None
+    except lookup.NotConnected:
+        raise ToolError("Flight isn't connected to live flight data right now.") from None
+    except lookup.Unavailable as exc:
+        raise ToolError(str(exc)) from None
+    link = shares.url(item)
+    route = item.to_string()
+    text = (
+        f"Here's a live link to {route}: {link}\n\n"
+        "Anyone with it can follow the flight on a map that moves on its own, without signing "
+        "in, until a day after it lands. The user can stop it at any time from the Sharing "
+        f"section of their account page ({settings.SITE_URL}{reverse('accounts:account')}#sharing)."
+    )
+    if not created:
+        text = "The user already has a link to this flight, so it's the same one.\n\n" + text
+    return {"markdown": text, "url": link, "flight": item.flight, "created": created}
+
+
 def pwa_name() -> str:
     """Return the app's name."""
     return conf.APP_NAME
@@ -305,7 +334,7 @@ TOOLS: dict[str, Tool] = {
             func=where_is,
             open_world=True,
             markdown=True,
-            ui="ui://flight/map-v6",
+            ui="ui://flight/map-v7",
         ),
         Tool(
             name="follow",
@@ -348,6 +377,25 @@ TOOLS: dict[str, Tool] = {
             ),
             input_schema=NO_ARGUMENTS,
             func=following,
+            markdown=True,
+        ),
+        Tool(
+            name="share_flight",
+            title="Share a live link to a flight",
+            description=(
+                "Make a live link to a flight in the air (or landed in the last day) that the "
+                "signed-in user can send to anyone: it opens a map of the flight that moves on "
+                "its own, without signing in, until a day after it lands. Give the operating "
+                "airline's flight number, such as BA1234. Give the link to the user as it is."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {"flight": {"type": "string", "maxLength": 10}},
+                "required": ["flight"],
+            },
+            func=share_flight,
+            read_only=False,
+            open_world=True,
             markdown=True,
         ),
         Tool(

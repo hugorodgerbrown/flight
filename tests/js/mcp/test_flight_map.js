@@ -1,4 +1,4 @@
-// Tests for apps/mcp/ui/flight_map.js: the projection, the crop and the card it draws.
+// Tests for static/js/flight_map.js: the projection, the crop and the card it draws.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -25,7 +25,7 @@ async function load() {
   self.FlightLand = 'M0 0L10 0L10 10Z';
   self.McpApp = { onToolResult: (listener) => (onResult = listener) };
   vi.resetModules();
-  await import('../../../apps/mcp/ui/flight_map.js');
+  await import('../../../static/js/flight_map.js');
 }
 
 beforeEach(load);
@@ -113,8 +113,8 @@ describe('the route through the plane', () => {
     expect(ahead).toEqual([]);
     onResult({ structuredContent: { ...FLIGHT, status: 'landed', position: null, path } });
     const svg = document.querySelector('[data-map]');
-    expect(svg.querySelector('.ahead')).toBeNull();
-    expect(svg.querySelectorAll('.code').length).toBe(2);
+    expect(svg.querySelector('.flight-map__ahead')).toBeNull();
+    expect(svg.querySelectorAll('.flight-map__code').length).toBe(2);
   });
 
   it('ignores a path that is too short or not numbers', () => {
@@ -145,13 +145,13 @@ describe('flight map card', () => {
     expect(q('arrives').textContent).toBe('Due 17:40');
     expect(q('note').textContent).toContain('no airline schedule, so no delays');
     const svg = q('map');
-    expect(svg.querySelector('.land').getAttribute('d')).toBe('M0 0L10 0L10 10Z');
-    expect(svg.querySelector('.flown')).not.toBeNull();
-    expect(svg.querySelector('.plane')).not.toBeNull();
-    const [lis, lhr] = svg.querySelectorAll('.code');
+    expect(svg.querySelector('.flight-map__land').getAttribute('d')).toBe('M0 0L10 0L10 10Z');
+    expect(svg.querySelector('.flight-map__flown')).not.toBeNull();
+    expect(svg.querySelector('.flight-map__plane')).not.toBeNull();
+    const [lis, lhr] = svg.querySelectorAll('.flight-map__code');
     expect([lis.textContent, lhr.textContent]).toEqual(['LIS', 'LHR']);
     // Lisbon is south of London: its code goes below the airport, London's above.
-    const [from, to] = svg.querySelectorAll('.airport');
+    const [from, to] = svg.querySelectorAll('.flight-map__airport');
     expect(Number(lis.getAttribute('y'))).toBeGreaterThan(Number(from.getAttribute('cy')));
     expect(Number(lhr.getAttribute('y'))).toBeLessThan(Number(to.getAttribute('cy')));
   });
@@ -164,8 +164,8 @@ describe('flight map card', () => {
     expect(q('pill').dataset.tone).toBe('muted');
     expect(q('arrives').textContent).toBe('Landed 17:52');
     expect(q('progress').style.width).toBe('100%');
-    expect(q('map').querySelector('.plane')).toBeNull();
-    expect(q('map').querySelector('.flown')).not.toBeNull();
+    expect(q('map').querySelector('.flight-map__plane')).toBeNull();
+    expect(q('map').querySelector('.flight-map__flown')).not.toBeNull();
   });
 
   it('shows a flight with no live position without a plane or a flown line', () => {
@@ -175,8 +175,8 @@ describe('flight map card', () => {
     expect(q('pill').textContent).toBe('No position');
     expect(q('departed').textContent).toBe('');
     expect(q('arrives').textContent).toBe('');
-    expect(q('map').querySelector('.plane')).toBeNull();
-    expect(q('map').querySelector('.flown')).toBeNull();
+    expect(q('map').querySelector('.flight-map__plane')).toBeNull();
+    expect(q('map').querySelector('.flight-map__flown')).toBeNull();
   });
 
   it('labels an estimated position', () => {
@@ -192,7 +192,7 @@ describe('flight map card', () => {
     expect(q('summary').textContent).toBe('BA1234 is on its way to London Heathrow; the map shows its last recorded position.');
     expect(q('pill').textContent).toBe('Last seen 10:05 UTC · 36,000 ft');
     expect(q('pill').dataset.tone).toBe('muted');
-    expect(q('map').querySelector('.plane')).not.toBeNull();
+    expect(q('map').querySelector('.flight-map__plane')).not.toBeNull();
     expect(self.FlightMap.pillFor({ status: 'airborne', position_kind: 'last_seen' }).pill).toBe('Last seen');
   });
 
@@ -230,7 +230,7 @@ describe('long-haul on a globe (RAS-143)', () => {
 
   // Run the vendored script as the card does, a classic script with no
   // module system, so it sets self.d3.
-  const D3 = readFileSync(resolve(__dirname, '../../../apps/mcp/ui/vendor/d3_geo.js'), 'utf8');
+  const D3 = readFileSync(resolve(__dirname, '../../../static/vendor/d3_geo.js'), 'utf8');
   function withGlobe() {
     new Function('exports', 'module', 'define', D3).call(self);
     expect(typeof self.d3.geoOrthographic).toBe('function');
@@ -254,18 +254,18 @@ describe('long-haul on a globe (RAS-143)', () => {
     withGlobe();
     onResult({ structuredContent: LONG });
     const svg = document.querySelector('[data-map]');
-    expect(svg.classList.contains('globe')).toBe(true);
-    expect(svg.querySelector('.sphere').getAttribute('d')).toMatch(/^M/);
-    expect(svg.querySelector('.graticule').getAttribute('d')).toMatch(/^M/);
-    expect(svg.querySelector('.land').classList.contains('globe-land')).toBe(true);
-    expect(svg.querySelector('.flown').getAttribute('d')).toMatch(/^M/);
-    expect(svg.querySelector('.ahead').getAttribute('d')).toMatch(/^M/);
-    const plane = svg.querySelector('.plane');
+    expect(svg.classList.contains('flight-map--globe')).toBe(true);
+    expect(svg.querySelector('.flight-map__sphere').getAttribute('d')).toMatch(/^M/);
+    expect(svg.querySelector('.flight-map__graticule').getAttribute('d')).toMatch(/^M/);
+    expect(svg.querySelector('.flight-map__land').classList.contains('flight-map__globe-land')).toBe(true);
+    expect(svg.querySelector('.flight-map__flown').getAttribute('d')).toMatch(/^M/);
+    expect(svg.querySelector('.flight-map__ahead').getAttribute('d')).toMatch(/^M/);
+    const plane = svg.querySelector('.flight-map__plane');
     for (const axis of ['cx', 'cy']) expect(Number.isFinite(Number(plane.getAttribute(axis)))).toBe(true);
     // A short hop afterwards goes back to the flat map.
     onResult({ structuredContent: FLIGHT });
-    expect(svg.classList.contains('globe')).toBe(false);
-    expect(svg.querySelector('.sphere')).toBeNull();
+    expect(svg.classList.contains('flight-map--globe')).toBe(false);
+    expect(svg.querySelector('.flight-map__sphere')).toBeNull();
   });
 
   it('curves the way ahead on from the plane\'s heading into the destination', () => {

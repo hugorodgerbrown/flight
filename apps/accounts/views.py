@@ -240,12 +240,14 @@ def account(request: HttpRequest) -> HttpResponse:
     """Who the user is signed in as (the masked address), and their passkeys."""
     user = signed_in_user(request)
     from apps.alerts.views import account_context
+    from apps.shares.views import account_context as sharing_context
 
     return render(
         request,
         "accounts/account.html",
         {"passkeys": Passkey.objects.for_user(user), "signed_in_as": str(user)}
-        | account_context(request),
+        | account_context(request)
+        | sharing_context(request),
     )
 
 

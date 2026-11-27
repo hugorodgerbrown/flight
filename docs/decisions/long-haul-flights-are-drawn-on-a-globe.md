@@ -18,7 +18,7 @@ from the plane, rather than run straight to the destination.
   latitude and longitude, and the globe's edge where it falls inside the
   card, show the curvature. Shorter routes keep the flat Mercator map.
 - **d3-geo 3.1.1 and d3-array 3.2.4 are vendored** in
-  `apps/mcp/ui/vendor/d3_geo.js`. They are unmodified minified builds
+  `static/vendor/d3_geo.js`. They are unmodified minified builds
   under the ISC licence (GeographicLib's part is MIT), about 55 KB, and
   inlined into the card like the rest of it, so the card still loads
   nothing over the network. d3 does what we would otherwise hand-write

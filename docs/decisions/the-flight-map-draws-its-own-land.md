@@ -18,7 +18,7 @@ sea at the scale of one route, muted, with one accent plane.
 
 The view draws the map itself as SVG. `bin/make-land-map` turns Natural
 Earth's 1:50m land (public domain, from the `world-atlas` npm package) into
-one Web Mercator path in `apps/mcp/ui/flight_land.js`, simplified to about
+one Web Mercator path in `static/js/flight_land.js`, simplified to about
 160 KB. `flight_map.js` crops it to the route's great circle, padded and
 never closer than 8 degrees across, and draws the route (flown part solid,
 the rest dashed), the airports and the plane on top. Colours come from the

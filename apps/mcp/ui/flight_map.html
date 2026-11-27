@@ -7,7 +7,9 @@
 <!--
   The flight map card, an MCP App view (apps/mcp/resources.py). It runs in
   the client's sandboxed frame, so it carries its own style, script and base
-  map (flight_land.js); it loads nothing over the network. The host's style
+  map (flight_land.js); it loads nothing over the network. Its scripts
+  are the site's own static/js/flight_map.js and flight_land.js (the share
+  page draws the same card), and flight_share.js for the Share button. The host's style
   variables win over the fallbacks here.
 -->
 <style>
@@ -24,18 +26,19 @@
     --accent: var(--color-text-info, #2f6fde);
   }
   body { margin: 0; padding: 12px 16px 16px; }
+  [hidden] { display: none !important; }
   .map { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--sea); }
-  .map .land { fill: var(--land); stroke: none; }
-  .map.globe { background: var(--space); }
-  .map .sphere { fill: Canvas; stroke: var(--rule); }
-  .map .graticule { fill: none; stroke: var(--rule); stroke-width: 0.6; }
-  .map .globe-land { fill-rule: evenodd; }
-  .map .ahead { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 5; }
-  .map .flown { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
-  .map .airport { fill: Canvas; stroke: var(--muted); stroke-width: 1.5; }
-  .map .halo { fill: var(--accent); opacity: 0.2; }
-  .map .plane { fill: var(--accent); }
-  .map .code { fill: var(--muted); font-size: 12px; text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: Canvas; stroke-width: 3px; }
+  .map .flight-map__land { fill: var(--land); stroke: none; }
+  .map.flight-map--globe { background: var(--space); }
+  .map .flight-map__sphere { fill: Canvas; stroke: var(--rule); }
+  .map .flight-map__graticule { fill: none; stroke: var(--rule); stroke-width: 0.6; }
+  .map .flight-map__globe-land { fill-rule: evenodd; }
+  .map .flight-map__ahead { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 5; }
+  .map .flight-map__flown { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
+  .map .flight-map__airport { fill: Canvas; stroke: var(--muted); stroke-width: 1.5; }
+  .map .flight-map__halo { fill: var(--accent); opacity: 0.2; }
+  .map .flight-map__plane { fill: var(--accent); }
+  .map .flight-map__code { fill: var(--muted); font-size: 12px; text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: Canvas; stroke-width: 3px; }
   .summary { margin: 0 0 10px; font-size: var(--font-text-md-size, 1rem); line-height: 1.4; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
   .route { margin: 0; font-size: 1.125rem; font-weight: var(--font-weight-semibold, 600); }
@@ -47,6 +50,11 @@
   .times { display: flex; justify-content: space-between; margin: 8px 0 0; font-size: var(--font-text-sm-size, 0.875rem); color: var(--muted); }
   .times strong { color: var(--color-text-primary, CanvasText); }
   .note, .status { margin: 10px 0 0; font-size: var(--font-text-sm-size, 0.875rem); color: var(--muted); }
+  .share { margin-top: 12px; }
+  .share button { padding: 6px 14px; border: 1px solid var(--accent); border-radius: 999px; background: transparent; color: var(--accent); font: inherit; font-size: var(--font-text-sm-size, 0.875rem); cursor: pointer; }
+  .share button:disabled { opacity: 0.6; cursor: progress; }
+  .share-link { display: flex; gap: 8px; margin: 0; }
+  .share-link input { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: var(--font-text-sm-size, 0.875rem); }
 </style>
 </head>
 <body>
@@ -61,6 +69,14 @@
   <div class="bar"><span data-progress></span></div>
   <p class="times"><span data-departed></span><strong data-arrives></strong></p>
   <p class="note" data-note hidden></p>
+  <div class="share" data-share-box hidden>
+    <button type="button" data-share-button>Share a live link</button>
+    <p class="share-link" data-share-link hidden>
+      <input type="text" readonly aria-label="Live link to this flight" data-share-url>
+      <button type="button" data-share-copy>Copy</button>
+    </p>
+    <p class="note" data-share-note hidden></p>
+  </div>
 </article>
 </body>
 </html>

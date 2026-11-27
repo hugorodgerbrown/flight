@@ -197,6 +197,44 @@
     </ul>
   </section>
 
+  <section class="card stack" aria-labelledby="ds-sharing">
+    <h2 id="ds-sharing">Share links</h2>
+    <p class="meta">A share link's public page (apps/shares): the live line in each state, and the flight card, whose map static/js/flight_map.js draws. Drawn here by hand: a flat map, then the globe a long-haul route goes on.</p>
+    <p class="share-live share-live--on">Live · updated 12 seconds ago</p>
+    <p class="share-live">Landed</p>
+    <p class="share-live">This link has ended</p>
+    <article class="card flight-card">
+      <p class="flight-card__summary">BA117 lands at John F Kennedy International Airport in 2 h 32 m.</p>
+      <svg class="flight-map" viewBox="0 0 640 360" role="img" aria-label="A flat map of a route">
+        <path class="flight-map__land" d="M0 220L120 150L220 170L260 360L0 360Z M420 60L560 40L640 90L640 300L470 260Z"></path>
+        <path class="flight-map__ahead" d="M300 180L150 240"></path>
+        <path class="flight-map__flown" d="M520 120L410 140L300 180"></path>
+        <circle class="flight-map__airport" cx="520" cy="120" r="4"></circle>
+        <circle class="flight-map__airport" cx="150" cy="240" r="4"></circle>
+        <text class="flight-map__code" x="538" y="108">LHR</text>
+        <text class="flight-map__code" x="132" y="254">JFK</text>
+        <circle class="flight-map__halo" cx="300" cy="180" r="13"></circle>
+        <circle class="flight-map__plane" cx="300" cy="180" r="6"></circle>
+      </svg>
+      <div class="flight-card__row">
+        <p class="flight-card__route">LHR → JFK</p>
+        <span class="status status--airborne">In the air · 37,000 ft</span>
+      </div>
+      <progress class="progress" max="100" value="63" aria-label="How far BA117 has flown">63%</progress>
+      <p class="flight-card__times"><span>Took off 08:36</span><strong>Due 13:41</strong></p>
+      <p class="meta">Live from Flightradar24, which has no airline schedule, so no delays.</p>
+    </article>
+    <svg class="flight-map flight-map--globe" viewBox="0 0 640 360" role="img" aria-label="A route on the globe">
+      <path class="flight-map__sphere" d="M320 20A300 300 0 1 1 319.9 20Z"></path>
+      <path class="flight-map__graticule" d="M20 180L620 180M320 20L320 340"></path>
+      <path class="flight-map__land flight-map__globe-land" d="M120 120L260 90L280 240L140 260Z M400 80L540 120L520 230L420 200Z"></path>
+      <path class="flight-map__flown" d="M500 150Q420 110 330 140"></path>
+      <path class="flight-map__ahead" d="M330 140Q250 160 190 220"></path>
+      <circle class="flight-map__halo" cx="330" cy="140" r="13"></circle>
+      <circle class="flight-map__plane" cx="330" cy="140" r="6"></circle>
+    </svg>
+  </section>
+
   <section class="card stack" aria-labelledby="ds-pages">
     <h2 id="ds-pages">Public pages</h2>
     <p class="meta">The front page is the app's own (DESIGN.md, "The front page"); these are the parts the public pages share.</p>
@@ -218,7 +256,6 @@
     <p class="eyebrow">Jobs, one not built yet</p>
     <ul class="job-list">
       <li class="job"><h2>An outcome</h2><p>One sentence about it.</p><p class="job__where">Where it happens</p></li>
-      <li class="job job--soon"><h2>An outcome on its way <span class="tag">Coming soon</span></h2><p>Said in words, not only in grey.</p><p class="job__where">Where it will happen</p></li>
     </ul>
     <p class="eyebrow">Things to ask</p>
     <ul class="ask-list"><li class="ask">Where is BA117?</li><li class="ask">When does EZY8461 land?</li></ul>

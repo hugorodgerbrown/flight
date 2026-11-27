@@ -1,0 +1,45 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% comment %}A share link (RAS-145): one flight's card, public, live while it flies.
+  Without JavaScript it says where the flight is in words, as it was when the
+  page loaded. static/js/share.js feeds the card to static/js/flight_map.js,
+  which draws the map, and asks again every poll_seconds while it's open.{% endcomment %}
+{% block title %}{{ headline }} · {{ pwa.name }}{% endblock %}
+{% block description %}{{ description }}{% endblock %}
+{% block share_title %}{{ headline }}{% endblock %}
+{% block share_description %}{{ description }} Live on {{ pwa.name }}.{% endblock %}
+{% block share_image %}{{ preview_url }}{% endblock %}
+{% block share_image_alt %}{{ description }}{% endblock %}
+{% block extra_js %}
+  <script src="{% static 'js/share.js' %}" defer></script>
+  <script src="{% static 'vendor/d3_geo.js' %}" defer></script>
+  <script src="{% static 'js/flight_land.js' %}" defer></script>
+  <script src="{% static 'js/flight_map.js' %}" defer></script>
+{% endblock %}
+{% block content %}
+  <div class="stack">
+    <p class="eyebrow">Shared flight</p>
+    <h1>{{ headline }}</h1>
+  </div>
+  <p class="share-live{% if state == 'live' %} share-live--on{% endif %}" data-share-live aria-live="polite">
+    {% if state == "ended" %}This link has ended{% elif state == "landed" %}Landed{% else %}Live{% endif %}
+  </p>
+  <article class="card flight-card" data-share data-card data-feed="{{ feed }}" data-feed-url="{{ feed_url }}" data-poll-seconds="{{ poll_seconds }}" data-state="{{ state }}">
+    <p class="flight-card__summary" data-summary>{{ description }}</p>
+    <svg class="flight-map" data-map viewBox="0 0 640 360" role="img" aria-label="Map of {{ flight.flight }}'s route"></svg>
+    <div class="flight-card__row">
+      <p class="flight-card__route" data-route>{{ flight.origin.code }} → {{ flight.destination.code }}</p>
+      <span class="status status--{% if state == 'ended' %}ended{% elif flight.status == 'landed' %}landed{% else %}airborne{% endif %}" data-pill>{% if state == "ended" %}Ended{% elif flight.status == "landed" %}Landed{% else %}In the air{% endif %}</span>
+    </div>
+    <progress class="progress" max="100" value="{{ progress_percent }}" aria-label="How far {{ flight.flight }} has flown" data-progress>{{ progress_percent }}%</progress>
+    <p class="flight-card__times"><span data-departed>{% if flight.departed_local %}Took off {{ flight.departed_local }}{% endif %}</span><strong data-arrives>{% if state == "ended" %}{% elif flight.status == "landed" %}{% if flight.arrives_local %}Landed {{ flight.arrives_local }}{% endif %}{% elif flight.arrives_local %}Due {{ flight.arrives_local }}{% endif %}</strong></p>
+    <p class="meta" data-note>Live from Flightradar24, which has no airline schedule, so no delays.</p>
+    <p class="meta" data-status hidden></p>
+  </article>
+  <p class="meta">{% if state == "ended" %}A share link ends a day after its flight lands.{% else %}Anyone with this link can follow {{ flight.flight }} until a day after it lands. It moves on its own: there's no need to refresh.{% endif %}</p>
+  <section class="card stack">
+    <h2>Follow your own flights</h2>
+    <p>Ask Claude "where is {{ flight.flight }}?" and {{ pwa.name }} answers with this map.</p>
+    <p><a href="{% url 'public:home' %}">See how {{ pwa.name }} works</a></p>
+  </section>
+{% endblock %}

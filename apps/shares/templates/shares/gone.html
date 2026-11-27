@@ -1,0 +1,13 @@
+{% extends "public_base.html" %}
+{% comment %}An old or mistyped share link (RAS-145): ended links are deleted, so they come here, with a 404.{% endcomment %}
+{% block title %}Link ended · {{ pwa.name }}{% endblock %}
+{% block description %}This share link has ended.{% endblock %}
+{% block share_title %}This share link has ended{% endblock %}
+{% block content %}
+  <section class="card stack">
+    <p class="eyebrow">Shared flight</p>
+    <h1>This link has ended</h1>
+    <p>A share link stops a day after its flight lands, or when the person who shared it stops it. Ask them for a new one if the flight is still on its way.</p>
+    <p><a href="{% url 'public:home' %}">See how {{ pwa.name }} works</a></p>
+  </section>
+{% endblock %}
