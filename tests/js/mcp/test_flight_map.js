@@ -252,6 +252,14 @@ describe('flight map card', () => {
     expect(self.FlightMap.pillFor({ status: 'airborne', position_kind: 'last_seen' }).pill).toBe('Last seen');
   });
 
+  it('gives a last-seen time in the viewer\'s own time (RAS-150)', () => {
+    self.McpApp.hostContext = () => ({ timeZone: 'Asia/Singapore' });
+    const seen = { ...FLIGHT, position_kind: 'last_seen', seen: '2026-11-26T09:31:00+00:00', seen_utc: '09:31' };
+    onResult({ structuredContent: seen });
+    expect(document.querySelector('[data-pill]').textContent).toBe('Last seen 17:31 your time · 36,000 ft');
+    expect(self.FlightMap.pillFor({ ...seen, seen: 'nonsense' }, 'UTC').pill).toBe('Last seen 09:31 UTC');
+  });
+
   it('says so when a flight in the air has no ETA yet', () => {
     onResult({ structuredContent: { ...FLIGHT, minutes_to_go: null, arrives_local: null, altitude_ft: null } });
     const q = (name) => document.querySelector(`[data-${name}]`);

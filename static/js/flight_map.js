@@ -301,12 +301,15 @@
     lost: { pill: 'No position', tone: 'muted' },
   };
 
-  // An airborne flight's pill says where its position came from (RAS-140).
-  function pillFor(flight) {
+  // An airborne flight's pill says where its position came from (RAS-140),
+  // and a last-seen time is the viewer's own, like every time on the card (RAS-150).
+  function pillFor(flight, viewer) {
     const status = STATUS[flight.status] || STATUS.lost;
     if (flight.status !== 'airborne') return status;
     if (flight.position_kind === 'estimated') return { pill: 'Estimated position', tone: 'ok' };
     if (flight.position_kind === 'last_seen') {
+      const seen = clockIn(flight.seen, viewer || viewerZone());
+      if (seen) return { pill: `Last seen ${seen.time} your time`, tone: 'muted' };
       return { pill: flight.seen_utc ? `Last seen ${flight.seen_utc} UTC` : 'Last seen', tone: 'muted' };
     }
     return status;
@@ -394,7 +397,8 @@
 
   function fill(flight) {
     const q = (name) => document.querySelector(`[data-${name}]`);
-    const status = pillFor(flight);
+    const viewer = viewerZone();
+    const status = pillFor(flight, viewer);
     q('summary').textContent = sentence(flight);
     q('route').textContent = `${flight.origin.code} → ${flight.destination.code}`;
     const pill = q('pill');
@@ -410,7 +414,6 @@
     } else {
       bar.style.width = `${percent}%`;
     }
-    const viewer = viewerZone();
     setTimes(q('departed'), departure(flight, viewer));
     setTimes(q('arrives'), arrival(flight, viewer));
     q('note').textContent = 'Live from Flightradar24.';
