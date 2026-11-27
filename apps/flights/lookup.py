@@ -137,13 +137,13 @@ def landing(number: str, fr24_id: str) -> tuple[datetime | None, dict[str, Any] 
                 "flight_datetime_to": str(since),
             },
         )
+        row = next((r for r in rows if str(r.get("fr24_id") or "") == fr24_id), None) or {}
+        landed = str(row.get("datetime_landed") or "")
+        code = row.get("dest_iata_actual") or row.get("dest_icao_actual") if landed else ""
+        airport = place(api, str(code or ""))
     except Fr24Error as exc:
         logger.warning("landing %s %s: Flightradar24 failed: %s", number, fr24_id, exc)
         raise Unavailable(f"Flightradar24 couldn't be reached to check {number}.") from exc
-    row = next((r for r in rows if str(r.get("fr24_id") or "") == fr24_id), None) or {}
-    landed = str(row.get("datetime_landed") or "")
-    code = row.get("dest_iata_actual") or row.get("dest_icao_actual") if landed else ""
-    airport = place(api, str(code or ""))
     at = airport.as_place() if airport else None
     logger.info("landing %s %s: %s %s", number, fr24_id, landed or "not reported", code or "")
     cache.set(cache_key, (landed, at), CACHE_SECONDS)

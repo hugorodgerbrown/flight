@@ -169,6 +169,25 @@ def test_a_diversion_seen_late_shows_where_it_really_landed(fr24: dict[str, Any]
 
 
 @freeze_time(NOW)
+def test_an_unknown_diversion_airport_failing_keeps_the_last_card(
+    fr24: dict[str, Any], monkeypatch: Any
+) -> None:
+    """Flightradar24 failing on the airport a leg diverted to shows the last card, not an error."""
+    fr24["summaries"] = [
+        SUMMARY_BA117
+        | {"datetime_landed": "2026-11-26T07:00:00Z", "flight_ended": True}
+        | {"fr24_id": "gone1234", "dest_iata_actual": "XXX"}
+    ]
+
+    def failing(api: Any, code: str) -> None:
+        raise lookup.Fr24Error("timed out")
+
+    monkeypatch.setattr(lookup, "place", failing)
+    item = ShareFactory.create(fr24_id="gone1234")
+    assert shares.current(item) == shares.Shown(shares.LIVE, item.snapshot)
+
+
+@freeze_time(NOW)
 def test_a_leg_flightradar24_has_dropped_keeps_its_last_card(fr24: dict[str, Any]) -> None:
     """No landing reported for a leg no longer tracked: the last card stays, still live."""
     item = ShareFactory.create(fr24_id="gone1234")
