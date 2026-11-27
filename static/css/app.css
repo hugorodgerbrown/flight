@@ -342,6 +342,10 @@ input.code-box:focus { border-color: var(--brand); outline: 2px solid var(--bran
 .flight-card__route { margin: 0; font-size: var(--type-lg); font-weight: 600; }
 .flight-card__times { display: flex; justify-content: space-between; gap: var(--space-sm); margin: 0; color: var(--text-2); font-size: var(--type-sm); }
 .flight-card__times strong { color: var(--text-1); }
+.flight-card__times > * { display: flex; flex-direction: column; gap: var(--space-2xs); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.flight-card__times > :last-child { align-items: flex-end; text-align: right; }
+.flight-card__local { white-space: nowrap; }
+.flight-card__yours { color: var(--text-2); font-weight: 400; white-space: nowrap; }
 .flight-card .meta { margin: 0; }
 .flight-map { display: block; width: 100%; height: auto; border-radius: var(--radius-control); background: color-mix(in srgb, var(--text-1) 4%, transparent); }
 .flight-map--globe { background: color-mix(in srgb, var(--text-1) 7%, transparent); }

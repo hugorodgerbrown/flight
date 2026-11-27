@@ -129,6 +129,62 @@ describe('the route through the plane', () => {
   });
 });
 
+describe('flight map times (RAS-150)', () => {
+  // BA117, London to New York, on a winter's day: 08:36 GMT off, 11:04 EST due.
+  const BA117 = {
+    ...FLIGHT,
+    origin: { code: 'LHR', name: 'London Heathrow', lat: 51.47, lon: -0.4543, tz: 'Europe/London' },
+    destination: { code: 'JFK', name: 'John F Kennedy', lat: 40.64, lon: -73.78, tz: 'America/New_York' },
+    departed: '2026-11-26T08:36:00+00:00',
+    arrives: '2026-11-26T16:04:00+00:00',
+  };
+  const q = (name) => document.querySelector(`[data-${name}]`);
+  const lines = (name) => [...q(name).children].map((line) => [line.className, line.textContent]);
+  const viewing = (timeZone) => (self.McpApp.hostContext = () => ({ timeZone }));
+
+  it('gives each end its airport\'s local time, and the viewer\'s under it', () => {
+    viewing('Asia/Singapore');
+    onResult({ structuredContent: BA117 });
+    expect(lines('departed')).toEqual([
+      ['flight-card__local', 'Took off 08:36 LHR'],
+      ['flight-card__yours', '16:36 your time'],
+    ]);
+    // 16:04 UTC is past midnight in Singapore: the viewer's line names the day.
+    expect(lines('arrives')).toEqual([
+      ['flight-card__local', 'Due 11:04 JFK'],
+      ['flight-card__yours', 'Fri 00:04 your time'],
+    ]);
+  });
+
+  it('leaves out the viewer\'s time where their clock reads the same', () => {
+    viewing('Europe/Dublin');
+    onResult({ structuredContent: BA117 });
+    expect(lines('departed')).toEqual([['flight-card__local', 'Took off 08:36 LHR']]);
+    expect(lines('arrives')).toEqual([
+      ['flight-card__local', 'Due 11:04 JFK'],
+      ['flight-card__yours', '16:04 your time'],
+    ]);
+  });
+
+  it('says landed with both times, and no ETA without one', () => {
+    viewing('Asia/Singapore');
+    onResult({ structuredContent: { ...BA117, status: 'landed' } });
+    expect(q('arrives').textContent).toBe('Landed 11:04 JFKFri 00:04 your time');
+    onResult({ structuredContent: { ...BA117, arrives: null, arrives_local: null } });
+    expect(lines('arrives')).toEqual([['flight-card__local', 'No ETA yet']]);
+  });
+
+  it('falls back to the browser\'s zone, and to the server\'s clock when a zone is unusable', () => {
+    expect(self.FlightMap.times(BA117.departed, BA117.origin, '08:36', undefined).local).toBe('08:36 LHR');
+    const unknown = { ...BA117.origin, tz: 'Not/AZone' };
+    expect(self.FlightMap.times(BA117.departed, unknown, '08:36', 'UTC')).toEqual({ local: '08:36 LHR', yours: '' });
+    expect(self.FlightMap.times(BA117.departed, BA117.origin, '08:36', 'Not/AZone')).toEqual({ local: '08:36 LHR', yours: '' });
+    expect(self.FlightMap.clockIn('not a time', 'UTC')).toBeNull();
+    onResult({ structuredContent: BA117 });
+    expect(q('departed').firstChild.textContent).toBe('Took off 08:36 LHR');
+  });
+});
+
 describe('flight map card', () => {
   it('draws a flight in the air: sentence, route, plane, height and ETA, all as text', () => {
     onResult({ structuredContent: { ...FLIGHT, flight: '<b>BA1234</b>' } });
@@ -141,9 +197,9 @@ describe('flight map card', () => {
     expect(q('pill').textContent).toBe('In the air · 36,000 ft');
     expect(q('pill').dataset.tone).toBe('ok');
     expect(q('progress').style.width).toBe('38%');
-    expect(q('departed').textContent).toBe('Took off 15:00');
-    expect(q('arrives').textContent).toBe('Due 17:40');
-    expect(q('note').textContent).toContain('no airline schedule, so no delays');
+    expect(q('departed').textContent).toBe('Took off 15:00 LIS');
+    expect(q('arrives').textContent).toBe('Due 17:40 LHR');
+    expect(q('note').textContent).toBe('Live from Flightradar24.');
     const svg = q('map');
     expect(svg.querySelector('.flight-map__land').getAttribute('d')).toBe('M0 0L10 0L10 10Z');
     expect(svg.querySelector('.flight-map__flown')).not.toBeNull();
@@ -162,7 +218,7 @@ describe('flight map card', () => {
     expect(q('summary').textContent).toBe('BA1234 landed at London Heathrow.');
     expect(q('pill').textContent).toBe('Landed');
     expect(q('pill').dataset.tone).toBe('muted');
-    expect(q('arrives').textContent).toBe('Landed 17:52');
+    expect(q('arrives').textContent).toBe('Landed 17:52 LHR');
     expect(q('progress').style.width).toBe('100%');
     expect(q('map').querySelector('.flight-map__plane')).toBeNull();
     expect(q('map').querySelector('.flight-map__flown')).not.toBeNull();

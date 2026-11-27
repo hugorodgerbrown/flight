@@ -19,6 +19,7 @@
   const listeners = { 'tool-input': [], 'tool-result': [] };
   const latest = {};
   let nextId = 1;
+  let context = {};
 
   // The host's origin isn't known to a sandboxed view, so '*' is the spec's
   // own choice; nothing secret is sent, and replies are checked by source.
@@ -35,14 +36,16 @@
     });
   }
 
-  function applyContext(context) {
-    if (!context) return;
+  function applyContext(update) {
+    if (!update) return;
+    // A host-context-changed notice carries only what changed.
+    context = Object.assign({}, context, update);
     const root = document.documentElement;
     if (context.theme === 'light' || context.theme === 'dark') {
       root.dataset.theme = context.theme;
       root.style.colorScheme = context.theme;
     }
-    const variables = (context.styles && context.styles.variables) || {};
+    const variables = (update.styles && update.styles.variables) || {};
     for (const [name, value] of Object.entries(variables)) {
       if (name.startsWith('--') && typeof value === 'string') root.style.setProperty(name, value);
     }
@@ -115,6 +118,7 @@
     ready,
     onToolInput: on('tool-input'),
     onToolResult: on('tool-result'),
+    hostContext: () => context,
     callTool: (name, args) => request('tools/call', { name, arguments: args || {} }),
   };
 })();

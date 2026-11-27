@@ -100,6 +100,17 @@ def _clock(moment: str | None, tz: str) -> str | None:
     return str(datetime.fromisoformat(moment).astimezone(ZoneInfo(tz)).strftime("%H:%M"))
 
 
+def _local(local: str, utc: str | None) -> str:
+    """Return a local clock with its UTC one, "08:36 local time (07:36 UTC)" (RAS-150).
+
+    Claude reads only the text and the server doesn't know the user's time
+    zone, so the UTC clock lets Claude say the time in the user's own.
+    """
+    if not utc or utc == local:
+        return f"{local} local time and UTC"
+    return f"{local} local time ({utc} UTC)"
+
+
 def _airport(place: dict[str, Any]) -> str:
     """Return an airport as "London Heathrow (LHR)"."""
     return f"{place['name']} ({place['code']})"
@@ -130,6 +141,8 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
     left = _clock(flight["departed"], origin["tz"])
     due = _clock(flight["arrives"], destination["tz"])
     seen = _clock(flight.get("seen"), "UTC")
+    left_at = _local(left, _clock(flight["departed"], "UTC")) if left else ""
+    due_at = _local(due, _clock(flight["arrives"], "UTC")) if due else ""
     # Claude reads only this text, not the card, so it says everything the card shows,
     # and says where a position came from without guessing why one is missing (RAS-140).
     if flight["status"] == lookup.AIRBORNE:
@@ -151,10 +164,10 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
         else:
             text += f", {where_now}."
         if left:
-            text += f" It took off at {left} local time."
+            text += f" It took off at {left_at}."
         if due:
             minutes = flight["minutes_to_go"]
-            text += f" It's due at {due} local time, in {_duration(minutes)}."
+            text += f" It's due at {due_at}, in {_duration(minutes)}."
         else:
             text += " Flightradar24 has no arrival estimate for it right now."
         text += (
@@ -165,16 +178,16 @@ def where_is(user: Any, args: dict[str, Any]) -> dict[str, Any]:
     elif flight["status"] == lookup.LANDED:
         text = (
             f"{number} landed at {_airport(destination)}"
-            + (f" at {due} local time" if due else "")
+            + (f" at {due_at}" if due else "")
             + f", from {_airport(origin)}."
-            + (f" It took off at {left} local time." if left else "")
+            + (f" It took off at {left_at}." if left else "")
             + " The map shows the route it flew."
         )
     else:
         text = (
             f"Flightradar24 isn't giving a position for {number} right now, and doesn't say "
             f"why. Its latest flight took off from {_airport(origin)}"
-            + (f" at {left} local time" if left else "")
+            + (f" at {left_at}" if left else "")
             + f" for {_airport(destination)} and hasn't been reported landed."
             + (f" Flightradar24 last heard from it at {seen} UTC." if seen else "")
             + " The map shows that route."
@@ -334,7 +347,7 @@ TOOLS: dict[str, Tool] = {
             func=where_is,
             open_world=True,
             markdown=True,
-            ui="ui://flight/map-v7",
+            ui="ui://flight/map-v8",
         ),
         Tool(
             name="follow",

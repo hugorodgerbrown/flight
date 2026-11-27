@@ -32,8 +32,8 @@
       <span class="status status--{% if state == 'ended' %}ended{% elif flight.status == 'landed' %}landed{% else %}airborne{% endif %}" data-pill>{% if state == "ended" %}Ended{% elif flight.status == "landed" %}Landed{% else %}In the air{% endif %}</span>
     </div>
     <progress class="progress" max="100" value="{{ progress_percent }}" aria-label="How far {{ flight.flight }} has flown" data-progress>{{ progress_percent }}%</progress>
-    <p class="flight-card__times"><span data-departed>{% if flight.departed_local %}Took off {{ flight.departed_local }}{% endif %}</span><strong data-arrives>{% if state == "ended" %}{% elif flight.status == "landed" %}{% if flight.arrives_local %}Landed {{ flight.arrives_local }}{% endif %}{% elif flight.arrives_local %}Due {{ flight.arrives_local }}{% endif %}</strong></p>
-    <p class="meta" data-note>Live from Flightradar24, which has no airline schedule, so no delays.</p>
+    <p class="flight-card__times"><span data-departed>{% if flight.departed_local %}<span class="flight-card__local">Took off {{ flight.departed_local }} {{ flight.origin.code }}</span>{% endif %}</span><strong data-arrives>{% if state == "ended" %}{% elif flight.status == "landed" %}{% if flight.arrives_local %}<span class="flight-card__local">Landed {{ flight.arrives_local }} {{ flight.destination.code }}</span>{% endif %}{% elif flight.arrives_local %}<span class="flight-card__local">Due {{ flight.arrives_local }} {{ flight.destination.code }}</span>{% endif %}</strong></p>
+    <p class="meta" data-note>Live from Flightradar24.</p>
     <p class="meta" data-status hidden></p>
   </article>
   <p class="meta">{% if state == "ended" %}A share link ends a day after its flight lands.{% else %}Anyone with this link can follow {{ flight.flight }} until a day after it lands. It moves on its own: there's no need to refresh.{% endif %}</p>
