@@ -182,20 +182,6 @@ a { color: var(--brand); }
 .job + .job { border-top: 1px solid var(--border); }
 .job p { margin: var(--space-xs) 0 0; }
 .job__where { color: var(--text-2); font-size: var(--type-sm); }
-/* A job that isn't built yet says so in words, not only by its colour. */
-.job--soon h2 { color: var(--text-2); }
-.tag {
-  display: inline-block;
-  margin-left: var(--space-xs);
-  padding: 0 var(--space-sm);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  color: var(--text-2);
-  font-size: var(--type-sm);
-  font-weight: 400;
-  vertical-align: middle;
-}
-
 /* Things to ask, as Claude would be asked them. */
 .ask-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-sm); }
 .ask {
@@ -346,6 +332,32 @@ input.code-box:focus { border-color: var(--brand); outline: 2px solid var(--bran
 .progress::-webkit-progress-bar { background: var(--border); }
 .progress::-webkit-progress-value { background: var(--brand); }
 .progress::-moz-progress-bar { background: var(--brand); }
+
+/* The flight card on a share link's page (RAS-145): the card Claude shows,
+   drawn by static/js/flight_map.js into the flight-map SVG. The map's sea
+   and land are tints of the text colour, so they follow the scheme. */
+.flight-card { display: flex; flex-direction: column; gap: var(--space-md); }
+.flight-card__summary { margin: 0; font-size: var(--type-md); }
+.flight-card__row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.flight-card__route { margin: 0; font-size: var(--type-lg); font-weight: 600; }
+.flight-card__times { display: flex; justify-content: space-between; gap: var(--space-sm); margin: 0; color: var(--text-2); font-size: var(--type-sm); }
+.flight-card__times strong { color: var(--text-1); }
+.flight-card .meta { margin: 0; }
+.flight-map { display: block; width: 100%; height: auto; border-radius: var(--radius-control); background: color-mix(in srgb, var(--text-1) 4%, transparent); }
+.flight-map--globe { background: color-mix(in srgb, var(--text-1) 7%, transparent); }
+.flight-map__land { fill: color-mix(in srgb, var(--text-1) 11%, transparent); stroke: none; }
+.flight-map__sphere { fill: var(--card); stroke: var(--border); }
+.flight-map__graticule { fill: none; stroke: var(--border); stroke-width: 0.6; }
+.flight-map__globe-land { fill-rule: evenodd; }
+.flight-map__ahead { fill: none; stroke: var(--text-2); stroke-width: 1.5; stroke-dasharray: 4 5; }
+.flight-map__flown { fill: none; stroke: var(--brand-ink); stroke-width: 2.5; stroke-linecap: round; }
+.flight-map__airport { fill: var(--card); stroke: var(--text-2); stroke-width: 1.5; }
+.flight-map__halo { fill: var(--brand-ink); opacity: 0.2; }
+.flight-map__plane { fill: var(--brand-ink); }
+.flight-map__code { fill: var(--text-2); font-size: var(--type-sm); text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
+/* Over the card: Live, with when Flightradar24 last heard from the plane, or how it ended. */
+.share-live { display: flex; align-items: center; gap: var(--space-sm); margin: 0; color: var(--text-2); font-size: var(--type-sm); }
+.share-live--on::before { content: ""; width: var(--space-sm); height: var(--space-sm); border-radius: var(--radius-round); background: var(--brand-ink); box-shadow: 0 0 0 4px var(--brand-soft); }
 /* Push and Email for one flight: a pair of toggles (aria-pressed says which are on). */
 .channels { display: flex; align-items: center; gap: var(--space-xs); }
 .channels .meta { margin: 0 var(--space-xs) 0 0; }

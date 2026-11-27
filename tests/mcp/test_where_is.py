@@ -39,7 +39,7 @@ def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
     fr24["live"] = [LIVE_BA117]
     fr24["summaries"] = [SUMMARY_BA117]
     described = next(t for t in rpc("tools/list")["tools"] if t["name"] == "where_is")
-    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v6"
+    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v7"
 
     result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": " ba 117 "}})
     (content,) = result["content"]

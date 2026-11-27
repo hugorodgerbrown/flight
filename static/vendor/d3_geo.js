@@ -1,5 +1,5 @@
 /*
- * apps/mcp/ui/vendor/d3_geo.js - d3-array 3.2.4 and d3-geo 3.1.1, unmodified minified builds
+ * static/vendor/d3_geo.js - d3-array 3.2.4 and d3-geo 3.1.1, unmodified minified builds
  * (npm), vendored so the flight map card can draw a globe (RAS-143) without
  * loading anything. They set self.d3. Licences below. Do not edit by hand.
  *

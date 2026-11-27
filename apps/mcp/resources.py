@@ -1,7 +1,9 @@
 """MCP Apps: ui:// resources a client renders alongside a tool's result.
 
 Each view is one HTML file in ``apps/mcp/ui/`` plus its scripts, put
-together into a single self-contained document when read. The client
+together into a single self-contained document when read. A script named
+``static/...`` is the site's own (the flight card's, which the public share
+page runs too, RAS-145); any other is in ``apps/mcp/ui/``. The client
 (Claude) draws it in a sandboxed iframe on its own origin and hands it the
 tool result over ``postMessage`` (``ui/bridge.js``), so it never loads
 anything from this site and the site's CSP doesn't apply to it.
@@ -16,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
+STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static"
 MIME_TYPE = "text/html;profile=mcp-app"
 # The bridge every view needs; its own scripts follow it.
 BRIDGE = "bridge.js"
@@ -63,13 +66,20 @@ class UiResource:
         }
 
 
+def script_path(name: str) -> Path:
+    """Return where script ``name`` is: under static/ for ``static/...``, else apps/mcp/ui/."""
+    if name.startswith("static/"):
+        return STATIC_DIR / name.removeprefix("static/")
+    return UI_DIR / name
+
+
 @cache
 def render(html: str, scripts: tuple[str, ...]) -> str:
     """Inline ``scripts`` before the closing body tag of ``html``."""
     page = (UI_DIR / html).read_text()
     # "</" inside a script would end it early; "<\/" means the same in JavaScript.
     inline = "".join(
-        f"<script>\n{(UI_DIR / name).read_text().replace('</', '<\\/')}</script>\n"
+        f"<script>\n{script_path(name).read_text().replace('</', '<\\/')}</script>\n"
         for name in scripts
     )
     head, sep, tail = page.rpartition("</body>")
@@ -83,12 +93,17 @@ RESOURCES: dict[str, UiResource] = {
     for r in [
         UiResource(
             # Versioned: Claude caches a view by URI, so a changed card needs a new one.
-            uri="ui://flight/map-v6",
+            uri="ui://flight/map-v7",
             name="flight_map",
             title="Flight",
             description="One flight on a map: its route, position, progress and ETA or landing.",
             html="flight_map.html",
-            scripts=("vendor/d3_geo.js", "flight_land.js", "flight_map.js"),
+            scripts=(
+                "static/vendor/d3_geo.js",
+                "static/js/flight_land.js",
+                "static/js/flight_map.js",
+                "flight_share.js",
+            ),
         ),
     ]
 }

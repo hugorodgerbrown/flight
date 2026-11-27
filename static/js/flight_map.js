@@ -1,5 +1,5 @@
 /*
- * apps/mcp/ui/flight_map.js — draw where_is's result as a map card.
+ * static/js/flight_map.js — draw where_is's result as a map card.
  *
  * A short hop is drawn on the land from flight_land.js (Web Mercator in
  * degrees: x = longitude + 180, y = 0 at 85 degrees north), cropped to the
@@ -224,9 +224,9 @@
       at: (p) => projection([p.lon, p.lat]),
       line: (points) => draw({ type: 'LineString', coordinates: points.map((p) => [p.lon, p.lat]) }) || '',
       base: [
-        el('path', { class: 'sphere', d: draw({ type: 'Sphere' }) || '' }),
-        el('path', { class: 'graticule', d: draw(d3.geoGraticule10()) || '' }),
-        el('path', { class: 'land globe-land', d: draw(landRings()) || '' }),
+        el('path', { class: 'flight-map__sphere', d: draw({ type: 'Sphere' }) || '' }),
+        el('path', { class: 'flight-map__graticule', d: draw(d3.geoGraticule10()) || '' }),
+        el('path', { class: 'flight-map__land flight-map__globe-land', d: draw(landRings()) || '' }),
       ],
     };
   }
@@ -242,7 +242,7 @@
       line: (points) => line(points, view),
       base: [
         el('path', {
-          class: 'land',
+          class: 'flight-map__land',
           d: self.FlightLand || '',
           transform: `translate(${(-view.x * view.scale).toFixed(2)} ${(-view.y * view.scale).toFixed(2)}) scale(${view.scale.toFixed(4)})`,
         }),
@@ -257,10 +257,10 @@
     const globe = onGlobe(flight);
     const view = globe ? globeView(flight, route) : flatView(route);
     const at = view.at;
-    svg.classList.toggle('globe', globe);
+    svg.classList.toggle('flight-map--globe', globe);
     const parts = [...view.base];
-    if (ahead.length) parts.push(el('path', { class: 'ahead', d: view.line(ahead) }));
-    if (flown.length) parts.push(el('path', { class: 'flown', d: view.line(flown) }));
+    if (ahead.length) parts.push(el('path', { class: 'flight-map__ahead', d: view.line(ahead) }));
+    if (flown.length) parts.push(el('path', { class: 'flight-map__flown', d: view.line(flown) }));
     // Each code sits away from the line leaving its airport, judged from the
     // first point far enough along it (a track starts on the runway).
     const first = flown.length ? flown : ahead;
@@ -271,17 +271,17 @@
     ];
     for (const [airport, leaving] of ends) {
       const [x, y] = at(airport);
-      parts.push(el('circle', { class: 'airport', cx: x.toFixed(1), cy: y.toFixed(1), r: 4 }));
+      parts.push(el('circle', { class: 'flight-map__airport', cx: x.toFixed(1), cy: y.toFixed(1), r: 4 }));
       const next = leaving.map(at).find(([px, py]) => Math.hypot(px - x, py - y) > LABEL_GAP) || at(leaving[1] || airport);
       const [lx, ly] = labelAt([x, y], next);
-      const code = el('text', { class: 'code', x: lx.toFixed(1), y: ly.toFixed(1) });
+      const code = el('text', { class: 'flight-map__code', x: lx.toFixed(1), y: ly.toFixed(1) });
       code.textContent = airport.code;
       parts.push(code);
     }
     if (flight.position && flight.status === 'airborne') {
       const [x, y] = at(flight.position);
-      parts.push(el('circle', { class: 'halo', cx: x.toFixed(1), cy: y.toFixed(1), r: 13 }));
-      parts.push(el('circle', { class: 'plane', cx: x.toFixed(1), cy: y.toFixed(1), r: 6 }));
+      parts.push(el('circle', { class: 'flight-map__halo', cx: x.toFixed(1), cy: y.toFixed(1), r: 13 }));
+      parts.push(el('circle', { class: 'flight-map__plane', cx: x.toFixed(1), cy: y.toFixed(1), r: 6 }));
     }
     svg.replaceChildren(...parts);
     svg.setAttribute('aria-label', `Map of ${flight.flight} from ${origin.name} to ${destination.name}`);
@@ -337,7 +337,15 @@
     const height = flight.status === 'airborne' && flight.altitude_ft ? ` · ${Number(flight.altitude_ft).toLocaleString('en-GB')} ft` : '';
     pill.textContent = `${status.pill}${height}`;
     pill.dataset.tone = status.tone;
-    q('progress').style.width = `${Math.round(Math.max(0, Math.min(1, Number(flight.progress) || 0)) * 100)}%`;
+    const percent = Math.round(Math.max(0, Math.min(1, Number(flight.progress) || 0)) * 100);
+    const bar = q('progress');
+    // The share page's bar is a <progress> (RAS-145); the MCP card's is a span it widens.
+    if (bar.tagName === 'PROGRESS') {
+      bar.value = percent;
+      bar.textContent = `${percent}%`;
+    } else {
+      bar.style.width = `${percent}%`;
+    }
     q('departed').textContent = flight.departed_local ? `Took off ${flight.departed_local}` : '';
     q('arrives').textContent = arrival(flight);
     q('note').textContent = 'Live from Flightradar24, which has no airline schedule, so no delays.';

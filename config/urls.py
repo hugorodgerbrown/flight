@@ -27,6 +27,7 @@ urlpatterns = [
     path("app/", include("apps.pwa.urls")),
     path("app/", include("apps.flights.urls")),
     path("", include("apps.alerts.urls")),
+    path("", include("apps.shares.urls")),
     path("app/", include("apps.design.urls")),
     path("", include("mcp_auth.urls")),
     path("mcp", mcp, name="mcp"),

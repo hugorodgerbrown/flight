@@ -12,6 +12,7 @@
   </form>
   {% if follow_form.flight.errors %}<p class="form-error" id="flight-error" role="alert">{{ follow_form.flight.errors.0 }}</p>{% endif %}
   <p class="meta">We'll tell you when it next takes off and when it lands. Use the number of the airline flying it: it's on your boarding pass.</p>
+  {% if share_problem %}<p class="form-error" role="alert">{{ share_problem }}</p>{% endif %}
   {% if following %}
     <h2>Following</h2>
     <ul class="flight-list">

@@ -22,6 +22,13 @@
           <button class="channel" type="button" disabled aria-describedby="no-email-{{ item.uuid }}">Email</button>
         {% endif %}
       </form>
+      {% if item.state == "airborne" %}
+        <form method="post" action="{% url 'shares:create' %}">
+          {% csrf_token %}
+          <input type="hidden" name="flight" value="{{ item.flight }}">
+          <button class="button button--quiet" type="submit" aria-label="Share a live link to {{ item.flight }}">Share</button>
+        </form>
+      {% endif %}
       <form method="post" action="{% url 'alerts:stop_following' item.uuid %}">
         {% csrf_token %}
         <button class="button button--quiet" type="submit" aria-label="Stop following {{ item.flight }}">Stop</button>

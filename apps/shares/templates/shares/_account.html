@@ -1,0 +1,22 @@
+{# The account page's Sharing section: the links still live, each with Stop sharing (RAS-145). #}
+<section class="card stack" id="sharing">
+  <h2>Sharing</h2>
+  {% if live_shares %}
+    <ul class="item-list">
+      {% for item in live_shares %}
+        <li class="item">
+          <div>
+            <p class="item__title"><a href="{% url 'shares:page' item.token %}">{{ item.to_string }}</a></p>
+            <p class="meta">Anyone with the link can follow it for {{ item.expires_at|timeuntil }} more.</p>
+          </div>
+          <form method="post" action="{% url 'shares:stop' item.uuid %}">
+            {% csrf_token %}
+            <button class="button button--quiet" type="submit" aria-label="Stop sharing {{ item.flight }}">Stop sharing</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="meta">No live links. Share a flight in the air from the <a href="{% url 'flights:home' %}#following">Following list</a>, or ask Claude to share it. A link works for anyone who has it until a day after the flight lands.</p>
+  {% endif %}
+</section>

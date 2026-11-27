@@ -4,7 +4,8 @@ Render runs ``python manage.py watch_flights --commit`` every two minutes.
 Without ``--commit`` it lists the follows that are due and makes no calls
 (each check spends Flightradar24 credits). ``--commit`` checks them, saves
 what changed, sends the alerts and deletes follows that finished over a
-day ago. ``-v 2`` narrates each call and each event.
+day ago, and share links that have ended (apps/shares, RAS-145). ``-v 2``
+narrates each call and each event.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from django.utils import timezone
 from apps.alerts import watch
 from apps.alerts.models import Follow
 from apps.flights.fr24 import Fr24Api, Fr24Error, plural
+from apps.shares import shares
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,7 @@ class Command(BaseCommand):
             self.stdout.write("Nothing checked. Run with --commit to check them and send alerts.")
             return
         cleared, _ = Follow.objects.cleared(now).delete()
+        shares.clear(now)
         if not due:
             if verbosity >= 1:
                 self.stdout.write(f"Nothing due. Cleared {plural(cleared, 'finished follow')}.")
