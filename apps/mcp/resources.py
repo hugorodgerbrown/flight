@@ -93,7 +93,7 @@ RESOURCES: dict[str, UiResource] = {
     for r in [
         UiResource(
             # Versioned: Claude caches a view by URI, so a changed card needs a new one.
-            uri="ui://flight/map-v7",
+            uri="ui://flight/map-v8",
             name="flight_map",
             title="Flight",
             description="One flight on a map: its route, position, progress and ETA or landing.",

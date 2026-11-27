@@ -88,6 +88,14 @@ describe('bridge', () => {
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 
+  it('keeps the host context, merging each change, for the card\'s time zone', async () => {
+    await load(['bridge.js'], { theme: 'dark', timeZone: 'Asia/Singapore' });
+    await self.McpApp.ready;
+    expect(self.McpApp.hostContext()).toEqual({ theme: 'dark', timeZone: 'Asia/Singapore' });
+    deliver({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { theme: 'light' } });
+    expect(self.McpApp.hostContext()).toEqual({ theme: 'light', timeZone: 'Asia/Singapore' });
+  });
+
   it('calls a tool through the host and settles with its answer', async () => {
     await load(['bridge.js']);
     const ok = self.McpApp.callTool('add_note', { text: 'hi' });

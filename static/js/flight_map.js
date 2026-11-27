@@ -13,7 +13,8 @@
  * off the shortest route. The way ahead is dashed, a great circle from the
  * plane to the destination. The way ahead curves on from the plane's
  * heading into the destination, so it reads as the flown line continued.
- * The plane is one accent dot.
+ * The plane is one accent dot. Each time is the airport's local time, with
+ * the viewer's own under it when their clock reads differently (RAS-150).
  * Everything from the result goes in as text, never as markup.
  */
 (function () {
@@ -300,12 +301,15 @@
     lost: { pill: 'No position', tone: 'muted' },
   };
 
-  // An airborne flight's pill says where its position came from (RAS-140).
-  function pillFor(flight) {
+  // An airborne flight's pill says where its position came from (RAS-140),
+  // and a last-seen time is the viewer's own, like every time on the card (RAS-150).
+  function pillFor(flight, viewer) {
     const status = STATUS[flight.status] || STATUS.lost;
     if (flight.status !== 'airborne') return status;
     if (flight.position_kind === 'estimated') return { pill: 'Estimated position', tone: 'ok' };
     if (flight.position_kind === 'last_seen') {
+      const seen = clockIn(flight.seen, viewer || viewerZone());
+      if (seen) return { pill: `Last seen ${seen.time} your time`, tone: 'muted' };
       return { pill: flight.seen_utc ? `Last seen ${flight.seen_utc} UTC` : 'Last seen', tone: 'muted' };
     }
     return status;
@@ -322,15 +326,79 @@
     return `${flight.flight} lands at ${to} in ${duration(Math.max(0, Number(flight.minutes_to_go) || 0))}.`;
   }
 
-  function arrival(flight) {
-    if (flight.status === 'landed') return flight.arrives_local ? `Landed ${flight.arrives_local}` : 'Landed';
-    if (flight.status !== 'airborne') return '';
-    return flight.arrives_local ? `Due ${flight.arrives_local}` : 'No ETA yet';
+  // The viewer's time zone: the host's when it says (MCP Apps host context), else the browser's.
+  function viewerZone() {
+    const context = self.McpApp && self.McpApp.hostContext ? self.McpApp.hostContext() : null;
+    if (context && typeof context.timeZone === 'string' && context.timeZone) return context.timeZone;
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  }
+
+  // A moment's date, weekday and HH:MM in time zone ``zone``, or null if either is unusable.
+  function clockIn(iso, zone) {
+    const moment = new Date(iso || '');
+    if (!iso || Number.isNaN(moment.getTime()) || !zone) return null;
+    try {
+      const parts = {};
+      const format = new Intl.DateTimeFormat('en-GB', {
+        timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      });
+      for (const { type, value } of format.formatToParts(moment)) parts[type] = value;
+      return { date: `${parts.year}-${parts.month}-${parts.day}`, weekday: parts.weekday, time: `${parts.hour}:${parts.minute}` };
+    } catch {
+      return null;
+    }
+  }
+
+  // One end's times (RAS-150): the airport's local time, then the viewer's
+  // when their clock reads differently, with the weekday when it's another day there.
+  function times(iso, place, fallback, viewer) {
+    const local = clockIn(iso, place.tz);
+    if (!local) return { local: fallback ? `${fallback} ${place.code}` : '', yours: '' };
+    const mine = clockIn(iso, viewer);
+    const same = !mine || (mine.date === local.date && mine.time === local.time);
+    const day = mine && mine.date !== local.date ? `${mine.weekday} ` : '';
+    return { local: `${local.time} ${place.code}`, yours: same ? '' : `${day}${mine.time} your time` };
+  }
+
+  function departure(flight, viewer) {
+    const at = times(flight.departed, flight.origin, flight.departed_local, viewer);
+    return at.local ? { main: `Took off ${at.local}`, yours: at.yours } : { main: '', yours: '' };
+  }
+
+  function arrival(flight, viewer) {
+    const at = times(flight.arrives, flight.destination, flight.arrives_local, viewer);
+    if (flight.status === 'landed') return { main: at.local ? `Landed ${at.local}` : 'Landed', yours: at.yours };
+    if (flight.status !== 'airborne') return { main: '', yours: '' };
+    return at.local ? { main: `Due ${at.local}`, yours: at.yours } : { main: 'No ETA yet', yours: '' };
+  }
+
+  // Put one end's times in ``node``: the local line, and the viewer's under it.
+  function setTimes(node, { main, yours }) {
+    const lines = [];
+    if (main) {
+      const line = document.createElement('span');
+      line.className = 'flight-card__local';
+      line.textContent = main;
+      lines.push(line);
+    }
+    if (yours) {
+      const line = document.createElement('span');
+      line.className = 'flight-card__yours';
+      line.textContent = yours;
+      lines.push(line);
+    }
+    node.replaceChildren(...lines);
   }
 
   function fill(flight) {
     const q = (name) => document.querySelector(`[data-${name}]`);
-    const status = pillFor(flight);
+    const viewer = viewerZone();
+    const status = pillFor(flight, viewer);
     q('summary').textContent = sentence(flight);
     q('route').textContent = `${flight.origin.code} → ${flight.destination.code}`;
     const pill = q('pill');
@@ -346,14 +414,14 @@
     } else {
       bar.style.width = `${percent}%`;
     }
-    q('departed').textContent = flight.departed_local ? `Took off ${flight.departed_local}` : '';
-    q('arrives').textContent = arrival(flight);
-    q('note').textContent = 'Live from Flightradar24, which has no airline schedule, so no delays.';
+    setTimes(q('departed'), departure(flight, viewer));
+    setTimes(q('arrives'), arrival(flight, viewer));
+    q('note').textContent = 'Live from Flightradar24.';
     q('note').hidden = false;
     draw(q('map'), flight);
   }
 
-  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence, pillFor, legs, arc, bearing, curveAhead, onGlobe };
+  self.FlightMap = { project, greatCircle, frame, duration, labelAt, sentence, pillFor, legs, arc, bearing, curveAhead, onGlobe, clockIn, times };
 
   if (!self.McpApp) return;
   const status = document.querySelector('[data-status]');

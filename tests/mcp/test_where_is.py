@@ -39,7 +39,7 @@ def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
     fr24["live"] = [LIVE_BA117]
     fr24["summaries"] = [SUMMARY_BA117]
     described = next(t for t in rpc("tools/list")["tools"] if t["name"] == "where_is")
-    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v7"
+    assert described["_meta"]["ui"]["resourceUri"] == "ui://flight/map-v8"
 
     result = rpc("tools/call", {"name": "where_is", "arguments": {"flight": " ba 117 "}})
     (content,) = result["content"]
@@ -49,8 +49,8 @@ def test_a_flight_in_the_air_is_said_in_words_and_named_for_the_map(
         "International Airport (JFK), "
     )
     assert "% of the way, at 36,000 ft." in text
-    assert "It took off at 08:36 local time." in text
-    assert "It's due at 11:04 local time, in 6 h 33 m." in text
+    assert "It took off at 08:36 local time and UTC." in text
+    assert "It's due at 11:04 local time (16:04 UTC), in 6 h 33 m." in text
     assert "The map shows its route and where it is now." in text
     assert "can't say whether the flight is late" in text
     assert "sample" not in text
@@ -75,8 +75,8 @@ def test_a_landed_flight_says_where_and_when(fr24: dict[str, Any]) -> None:
     fr24["tracks"] = {"4b2c3d4e": [{"timestamp": "t", "lat": 53.4, "lon": -6.2}]}
     flight = where_is(None, {"flight": "EI154"})
     assert flight["markdown"].startswith(
-        "EI154 landed at London Heathrow Airport (LHR) at 08:48 local time, from Dublin "
-        "Airport (DUB). It took off at 07:45 local time. The map shows the route it flew."
+        "EI154 landed at London Heathrow Airport (LHR) at 08:48 local time and UTC, from Dublin "
+        "Airport (DUB). It took off at 07:45 local time and UTC. The map shows the route it flew."
     )
     assert flight["status"] == "landed"
     assert flight["progress"] == 1.0
@@ -128,7 +128,7 @@ def test_no_position_anywhere_is_said_plainly_without_a_reason(
     flight = where_is(None, {"flight": "BA117"})
     assert flight["markdown"].startswith(
         "Flightradar24 isn't giving a position for BA117 right now, and doesn't say why. "
-        "Its latest flight took off from London Heathrow Airport (LHR) at 08:36 local time "
+        "Its latest flight took off from London Heathrow Airport (LHR) at 08:36 local time and UTC "
         "for John F Kennedy International Airport (JFK) and hasn't been reported landed. "
         "Flightradar24 last heard from it at 09:31 UTC."
     )
