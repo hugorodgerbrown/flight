@@ -107,8 +107,12 @@ def where(number: str) -> dict[str, Any] | None:
     return flight
 
 
-def landing(number: str, fr24_id: str) -> datetime | None:
-    """Return when leg ``fr24_id`` of ``number`` landed, or None if no landing is reported.
+def landing(number: str, fr24_id: str) -> tuple[datetime | None, dict[str, Any] | None]:
+    """Return when leg ``fr24_id`` of ``number`` landed, and where; (None, None) if not reported.
+
+    Where is the airport it actually landed at, as a card's place, which a
+    diversion makes different from the one it was flying to; None when
+    Flightradar24 doesn't say.
 
     A share link follows one leg (RAS-145); once a newer leg of the number is
     what ``where`` answers about, the older leg's landing is in the last
@@ -120,7 +124,7 @@ def landing(number: str, fr24_id: str) -> datetime | None:
     cache_key = f"flights:landing:{fr24_id}"
     cached = cache.get(cache_key)
     if cached is not None:
-        return when(cached)
+        return when(cached[0]), cached[1]
     api = Fr24Api(key, verbosity=0, gap=0, retry=RETRY_SECONDS)
     by = "callsigns" if CALLSIGN.match(number) else "flights"
     since = timezone.now().astimezone(UTC).replace(microsecond=0, tzinfo=None)
@@ -136,11 +140,14 @@ def landing(number: str, fr24_id: str) -> datetime | None:
     except Fr24Error as exc:
         logger.warning("landing %s %s: Flightradar24 failed: %s", number, fr24_id, exc)
         raise Unavailable(f"Flightradar24 couldn't be reached to check {number}.") from exc
-    row = next((r for r in rows if str(r.get("fr24_id") or "") == fr24_id), None)
-    landed = str((row or {}).get("datetime_landed") or "")
-    logger.info("landing %s %s: %s", number, fr24_id, landed or "not reported")
-    cache.set(cache_key, landed, CACHE_SECONDS)
-    return when(landed)
+    row = next((r for r in rows if str(r.get("fr24_id") or "") == fr24_id), None) or {}
+    landed = str(row.get("datetime_landed") or "")
+    code = row.get("dest_iata_actual") or row.get("dest_icao_actual") if landed else ""
+    airport = place(api, str(code or ""))
+    at = airport.as_place() if airport else None
+    logger.info("landing %s %s: %s %s", number, fr24_id, landed or "not reported", code or "")
+    cache.set(cache_key, (landed, at), CACHE_SECONDS)
+    return when(landed), at
 
 
 def look_up(api: Fr24Api, number: str, now: datetime) -> dict[str, Any] | None:

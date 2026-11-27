@@ -96,8 +96,10 @@ def current(item: Share, now: datetime | None = None) -> Shown:
         else:
             # Flightradar24 has moved on to a newer leg of the number, or
             # dropped this one: its landing, if any, is in the summaries.
-            landed_at = lookup.landing(item.flight, item.fr24_id)
-            fresh = touch_down(item.snapshot, landed_at) if landed_at else item.snapshot
+            landed_at, landed_where = lookup.landing(item.flight, item.fr24_id)
+            fresh = (
+                touch_down(item.snapshot, landed_at, landed_where) if landed_at else item.snapshot
+            )
     except lookup.NotConnected, lookup.Unavailable:
         # Show the last card rather than nothing; the page says when it was seen.
         return Shown(LIVE, item.snapshot)
@@ -142,13 +144,19 @@ def card(flight: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def touch_down(snapshot: dict[str, Any], landed_at: datetime) -> dict[str, Any]:
-    """Return a card as it looks once its leg landed at ``landed_at``."""
+def touch_down(
+    snapshot: dict[str, Any], landed_at: datetime, where: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Return a card as it looks once its leg landed at ``landed_at``, at ``where`` if diverted."""
     arrives = landed_at.isoformat()
+    destination = snapshot["destination"]
+    if where and where["code"] != destination["code"]:
+        destination = where | {"city": city(where["code"])}
     return snapshot | {
         "status": lookup.LANDED,
+        "destination": destination,
         "arrives": arrives,
-        "arrives_local": clock(arrives, snapshot["destination"]["tz"]),
+        "arrives_local": clock(arrives, destination["tz"]),
         "progress": 1.0,
         "position": None,
         "position_kind": None,

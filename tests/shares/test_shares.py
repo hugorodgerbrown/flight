@@ -148,6 +148,27 @@ def test_yesterdays_link_never_shows_todays_flight(fr24: dict[str, Any]) -> None
 
 
 @freeze_time(NOW)
+def test_a_diversion_seen_late_shows_where_it_really_landed(fr24: dict[str, Any]) -> None:
+    """A leg that landed somewhere else, seen only after the next leg flies, says so."""
+    fr24["live"] = [LIVE_BA117 | {"fr24_id": "tomorrow1"}]
+    fr24["summaries"] = [
+        SUMMARY_BA117 | {"fr24_id": "tomorrow1"},
+        SUMMARY_BA117
+        | {
+            "datetime_landed": "2026-11-26T07:00:00Z",
+            "flight_ended": True,
+            "dest_iata_actual": "LHR",
+            "dest_icao_actual": "EGLL",
+        },
+    ]
+    shown = shares.current(ShareFactory.create())
+    assert shown.state == shares.LANDED
+    assert shown.flight["destination"]["code"] == "LHR"
+    assert shown.flight["destination"]["city"] == "London"
+    assert shown.flight["arrives_local"] == "07:00"
+
+
+@freeze_time(NOW)
 def test_a_leg_flightradar24_has_dropped_keeps_its_last_card(fr24: dict[str, Any]) -> None:
     """No landing reported for a leg no longer tracked: the last card stays, still live."""
     item = ShareFactory.create(fr24_id="gone1234")
